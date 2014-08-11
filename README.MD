@@ -1,0 +1,1 @@
+flume tailsource with offset.
