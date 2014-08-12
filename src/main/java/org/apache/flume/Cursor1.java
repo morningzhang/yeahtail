@@ -1,6 +1,6 @@
 package org.apache.flume;
 
-import com.sun.org.apache.bcel.internal.generic.RETURN;
+import org.apache.flume.channel.ChannelProcessor;
 import org.apache.flume.event.EventBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,20 +9,22 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
 public class Cursor1 {
     private static final Logger LOG = LoggerFactory.getLogger(Cursor1.class);
 
-    /* buffer size=4M  */
-    private static final long MAX_BUFFER_SIZE=4096000L;
+    /* buffer size=1M  */
+    private static final int BUFFER_SIZE=1024*1024;
+    private ByteBuffer buffer=ByteBuffer.allocate(BUFFER_SIZE);
 
+    /* file */
     private RandomAccessFile logRandomAccessFile;
     private FileChannel channel;
     private Offset logOffset;
 
-    private MappedByteBuffer mappedByteBuffer;
+    /* flume channel*/
+    private ChannelProcessor channelProcessor;
 
    public Cursor1(File logFile) throws IOException{
 
@@ -32,10 +34,11 @@ public class Cursor1 {
         channel=getLogFileChannel(logRandomAccessFile,logOffset);
 
 
-        mappedByteBuffer=reMapTheBuffer(logFile);
-        extractLines(mappedByteBuffer);
     }
 
+    public void setChannelProcessor(ChannelProcessor channelProcessor) {
+        this.channelProcessor = channelProcessor;
+    }
 
     private Offset getOffsetObject(File logFile) throws IOException{
         File offsetFile= new File(logFile.getAbsolutePath()+".offset");
@@ -54,37 +57,43 @@ public class Cursor1 {
       return logRandomAccessFile.getChannel();
     }
 
-    private MappedByteBuffer reMapTheBuffer(File logFile) throws IOException{
-        long fileLen=logFile.length();
-        long offset=logOffset.getCurrentValue();
-        long theEnd=Math.min(fileLen,offset+MAX_BUFFER_SIZE);
-        return channel.map(FileChannel.MapMode.READ_ONLY, offset,theEnd);
+    private void process() throws IOException{
+
+        channel.read(buffer);
+        int compactSize=compactBuffer(buffer);
+        //
+        channel.position(channel.position()-compactSize);
+        //
+        byte[] sb=new byte[buffer.limit()];
+        buffer.get(sb);
+
+        channelProcessor.processEvent(EventBuilder.withBody(sb));
+        buffer.clear();
+
     }
 
+    /**
+     * 从后面开始查找是否含有换行。如果查到换行进行切割。并把切割掉的尺寸返回。
+     * @param buffers
+     * @return
+     */
+    public int compactBuffer(ByteBuffer buffer){
 
-    private boolean extractLines(ByteBuffer buffer) {
-        buffer.rewind();
-        byte b=buffer.get();
+        int compactSize=0;
 
-        while (b==10){
-
-
-            b=buffer.get();
+        int currPosition=buffer.position();
+        for(int i=currPosition-1;i>=0;i--){
+            buffer.position(i);
+            byte b=buffer.get();
+            System.out.println("b="+b);
+            if(b==10){
+                buffer.limit(i+1);
+                buffer.position(0);
+                compactSize=currPosition-i-1;
+                return compactSize;
+            }
         }
-
-        return false;
-    }
-
-
-
-
-
-    public static void  main(String[] args){
-        try {
-            new Cursor1(new File("logs/aaa.log"));
-        }catch (Exception e){
-            e.printStackTrace();
-        }
+       return compactSize;
     }
 
 }

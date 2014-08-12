@@ -43,25 +43,4 @@ public class Offset {
         return mappedByteBuffer.getLong();
     }
 
-   public static void main(String[] args){
-       Offset offset=null;
-       try {
-           offset=  new Offset(new File("fff.txt"));
-           offset.increaseBy(5);
-           System.out.println( offset.getCurrentValue());
-           offset.increaseBy(100);
-           System.out.println( offset.getCurrentValue());
-
-       }catch (Exception e){
-            e.printStackTrace();
-       }finally {
-          try{
-              offset.close();
-          }catch (Exception e){
-                e.printStackTrace();
-          }
-       }
-
-   }
-
 }
