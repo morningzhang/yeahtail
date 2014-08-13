@@ -25,6 +25,9 @@ public class Cursor1 {
 
     /* flume channel*/
     private ChannelProcessor channelProcessor;
+    /**/
+    private volatile boolean done=false;
+    private long sleepTime=1000;//1s
 
    public Cursor1(File logFile) throws IOException{
 
@@ -33,12 +36,8 @@ public class Cursor1 {
 
         channel=getLogFileChannel(logRandomAccessFile,logOffset);
 
-
     }
 
-    public void setChannelProcessor(ChannelProcessor channelProcessor) {
-        this.channelProcessor = channelProcessor;
-    }
 
     private Offset getOffsetObject(File logFile) throws IOException{
         File offsetFile= new File(logFile.getAbsolutePath()+".offset");
@@ -57,17 +56,21 @@ public class Cursor1 {
       return logRandomAccessFile.getChannel();
     }
 
-    private void process() throws IOException{
-
+    private synchronized void process() throws IOException{
+        //读取到buffer
         channel.read(buffer);
+        //切割最后一行
         int compactSize=compactBuffer(buffer);
-        //
+        //回退到一定的position
         channel.position(channel.position()-compactSize);
-        //
+        //读取到数组
         byte[] sb=new byte[buffer.limit()];
         buffer.get(sb);
-
+        //发送
         channelProcessor.processEvent(EventBuilder.withBody(sb));
+        //更新offset
+        logOffset.increaseBy(sb.length);
+        //清除
         buffer.clear();
 
     }
@@ -85,7 +88,7 @@ public class Cursor1 {
         for(int i=currPosition-1;i>=0;i--){
             buffer.position(i);
             byte b=buffer.get();
-            System.out.println("b="+b);
+            //System.out.println("b="+b);
             if(b==10){
                 buffer.limit(i+1);
                 buffer.position(0);
@@ -94,6 +97,29 @@ public class Cursor1 {
             }
         }
        return compactSize;
+    }
+
+    public void setChannelProcessor(ChannelProcessor channelProcessor) {
+        this.channelProcessor = channelProcessor;
+    }
+
+    public void setSleepTime(long sleepTime){
+        this.sleepTime=sleepTime;
+    }
+
+    public void start() throws IOException,InterruptedException{
+        while (!done){
+            process();
+
+        }
+    }
+
+    public synchronized void close() throws Exception{
+        done=true;
+        channel.close();
+        logRandomAccessFile.close();
+        logOffset.close();
+
     }
 
 }
