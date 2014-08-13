@@ -1,343 +1,140 @@
 package org.apache.flume;
 
+import com.google.common.io.Closeables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.Closeable;
 import java.io.File;
-import java.io.FileDescriptor;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
-import org.apache.flume.channel.ChannelProcessor;
-import org.apache.flume.event.EventBuilder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-public class Cursor {
+public class Cursor implements Closeable{
     private static final Logger LOG = LoggerFactory.getLogger(Cursor.class);
 
-    final File file;
-    final ByteBuffer buf = ByteBuffer.allocateDirect(2097152);
+    /* buffer size=400K  */
+    private static final int BUFFER_SIZE=409600;
+    private ByteBuffer buffer=ByteBuffer.allocate(BUFFER_SIZE);
 
-    RandomAccessFile raf = null;
+    /* file and channel */
+    private RandomAccessFile logRandomAccessFile;
+    private FileChannel channel;
+    /* offset */
+    private Offset logOffset;
+    private volatile boolean done=false;
+    /* sleep time*/
+    private long sleepTime=1000;//1s
 
-    FileChannel in = null;
-    private ChannelProcessor channelProcessor;
+   public Cursor(File logFile) throws IOException{
 
-    public long lastFileMod;
-    public long lastChannelPos;
-    public long lastChannelSize;
-    public int readFailures;
-    public long allBufNum = 0L;
+        logRandomAccessFile=getLogRandomAccessFile(logFile);
+        logOffset=getOffsetObject(logFile);
 
+        channel=getLogFileChannel(logRandomAccessFile,logOffset);
 
-    Cursor(File f, long lastReadOffset, long lastFileLen, long lastMod) {
-        this.file = f;
-        this.lastChannelPos = lastReadOffset;
-        this.lastChannelSize = lastFileLen;
-        this.lastFileMod = lastMod;
-        this.readFailures = 0;
     }
 
-    public long getLastFileMod() {
-        return this.lastFileMod;
+
+    private Offset getOffsetObject(File logFile) throws IOException{
+        File offsetFile= new File(logFile.getAbsolutePath()+".offset");
+        if(!offsetFile.exists()){
+            offsetFile.createNewFile();
+        }
+        return new Offset(offsetFile);
     }
 
-    public long getLastChannelPos() {
-        return this.lastChannelPos;
+    private RandomAccessFile getLogRandomAccessFile(File logFile) throws IOException{
+        return new RandomAccessFile(logFile,"r");
     }
 
-    public long getLastChannelSize() {
-        return this.lastChannelSize;
+    private FileChannel getLogFileChannel(RandomAccessFile logRandomAccessFile,Offset logOffset) throws IOException{
+      logRandomAccessFile.seek(logOffset.getCurrentValue());
+      return logRandomAccessFile.getChannel();
     }
 
-    public void setLastChannelPos(long pos) {
-        this.lastChannelPos = pos;
+    public synchronized int process(ProcessCallBack processCallBack) throws IOException{
+        channel.position(logOffset.getCurrentValue());
+        //读取到buffer
+        int len=channel.read(buffer);
+        if(len==-1){
+            return len;
+        }
+        //切割最后一行
+        int compactSize=compactBuffer(buffer);
+        //回退到一定的position
+        channel.position(channel.position()-compactSize);
+        //读取到数组
+        byte[] data=new byte[buffer.limit()];
+        buffer.get(data);
+        //do process
+        processCallBack.doCallBack(data);
+        //更新offset
+        logOffset.increaseBy(data.length);
+        //清除
+        buffer.clear();
+
+        return len;
     }
 
-    public void setLastChannelSize(long pos) {
-        this.lastChannelSize = pos;
-    }
+    /**
+     * 从后面开始查找是否含有换行。如果查到换行进行切割。并把切割掉的尺寸返回。
+     * @param buffer
+     * @return int
+     */
+    public int compactBuffer(ByteBuffer buffer){
 
-    public ChannelProcessor getChannelProcessor() {
-        return this.channelProcessor;
-    }
-
-    public void setChannelProcessor(ChannelProcessor channelProcessor) {
-        this.channelProcessor = channelProcessor;
-    }
-
-    void initCursorPos()
-            throws InterruptedException {
-        if (this.raf != null) {
-            try {
-                this.raf.close();
-            } catch (IOException e) {
-                LOG.error("problem closing file " + e.getMessage(), e);
+        int currPosition=buffer.position();
+        for(int i=currPosition-1;i>=0;i--){
+            buffer.position(i);
+            byte b=buffer.get();
+            if(b==10){//换行符号
+                buffer.position(0);
+                buffer.limit(i+1);
+                return currPosition-i-1;
             }
         }
-        try {
-            LOG.debug("initCursorPos " + this.file);
-            this.raf = new RandomAccessFile(this.file, "r");
-            this.raf.seek(this.lastChannelPos);
-            this.in = this.raf.getChannel();
-        } catch (FileNotFoundException e) {
-            resetRAF();
-        } catch (IOException e) {
-            resetRAF();
-        }
+        //没在buffer中查找的换行的时候
+        buffer.position(0);
+        buffer.limit(currPosition);
+        return 0;
     }
 
-    void flush()
-            throws InterruptedException {
-        LOG.debug("raf:" + this.raf);
-        if (this.raf != null) {
-            try {
-                this.raf.close();
-            } catch (IOException e) {
-                LOG.error("problem closing file " + e.getMessage(), e);
-            }
-        }
-
-        this.buf.flip();
-        int remaining = this.buf.remaining();
-        if (remaining > 0) {
-            byte[] body = new byte[remaining];
-            this.buf.get(body, 0, remaining);
-            Event e = EventBuilder.withBody(body);
-            this.channelProcessor.processEvent(e);
-            this.lastChannelPos += body.length;
-        }
-        this.in = null;
-        this.buf.clear();
+    public void setSleepTime(long sleepTime){
+        this.sleepTime=sleepTime;
     }
 
-    void close() {
-        if (this.raf != null) {
-            try {
-                this.raf.close();
-            } catch (IOException e) {
-                LOG.error("problem closing file " + e.getMessage(), e);
-            }
-        }
-
-        this.in = null;
-        this.buf.clear();
+    public void setDone(boolean done){
+        this.done=done;
     }
 
-    void resetRAF()
-            throws InterruptedException {
-        LOG.debug("reseting cursor");
-        flush();
-        this.lastChannelPos = 0L;
-        this.lastFileMod = 0L;
-        this.readFailures = 0;
-    }
+    public void start(ProcessCallBack processCallBack) throws IOException,InterruptedException{
+        //重试300次
+        int retryTimes=300;
 
-    boolean checkForUpdates()
-            throws IOException {
-        LOG.debug("tail " + this.file + " : recheck");
-        if (this.file.isDirectory()) {
-            IOException ioe = new IOException("Tail expects a file '" + this.file + "', but it is a dir!");
-
-            LOG.error(ioe.getMessage());
-            throw ioe;
-        }
-
-        if (!this.file.exists()) {
-            LOG.debug("Tail '" + this.file + "': nothing to do, waiting for a file");
-            return false;
-        }
-
-        if (!this.file.canRead()) {
-            throw new IOException("Permission denied on " + this.file);
-        }
-
-        try {
-            if (this.raf != null) {
-                try {
-                    this.raf.close();
-                } catch (IOException e) {
-                    LOG.error("problem closing file " + e.getMessage(), e);
+        while (true){
+            //1.没有可以读的了
+            //2.新的日期已经生成
+            //3.满足以上条件再重试300次
+            if(process(processCallBack)==-1&&done){
+                if(--retryTimes<=0){
+                    close();
+                    break;
                 }
             }
-            this.raf = new RandomAccessFile(this.file, "r");
-            this.lastFileMod = this.file.lastModified();
-            this.in = this.raf.getChannel();
-
-            LOG.debug("###lastChannelPos=" + this.lastChannelPos);
-
-            if (this.lastChannelPos > 0L)
-                this.raf.seek(this.lastChannelPos);
-            else {
-                this.lastChannelPos = 0L;
-            }
-
-            this.lastChannelSize = this.in.size();
-
-            LOG.debug("Tail '" + this.file + "': opened last mod=" + this.lastFileMod + " lastChannelPos=" + this.lastChannelPos + " lastChannelSize=" + this.lastChannelSize);
-
-            return true;
-        } catch (FileNotFoundException fnfe) {
-            LOG.debug("Tail '" + this.file + "': a file existed then disappeared, odd but continue");
+            Thread.currentThread().sleep(sleepTime);
         }
-        return false;
     }
 
-    boolean extractLines(ByteBuffer buf) throws IOException, InterruptedException {
-        boolean madeProgress = false;
-        int start = buf.position();
-        buf.mark();
-
-        while (buf.hasRemaining()) {
-            byte b = buf.get();
-
-            if (b == 10) {
-                int end = buf.position();
-                int sz = end - start;
-                byte[] body = new byte[sz - 1];
-                buf.reset();
-                buf.get(body, 0, sz - 1);
-                buf.get();
-                buf.mark();
-                start = buf.position();
-                Event e = EventBuilder.withBody(body);
-                this.lastChannelPos += body.length + 1;
-                this.channelProcessor.processEvent(e);
-                madeProgress = true;
-            }
-
-        }
-
-        if (buf.remaining() == 0) {
-            this.allBufNum += 1L;
-            handleBufFull();
-            madeProgress = true;
-        }
-
-        buf.reset();
-        buf.compact();
-        return madeProgress;
+    public synchronized void close(){
+        Closeables.closeQuietly(channel);
+        Closeables.closeQuietly(logRandomAccessFile);
+        Closeables.closeQuietly(logOffset);
     }
 
-    void handleBufFull() throws IOException, InterruptedException {
-        int allBuf = this.buf.limit() - this.buf.position();
-        if (allBuf == 0) {
-            return;
-        }
-        byte[] body = new byte[allBuf];
-
-        Event e = EventBuilder.withBody(body);
-        this.channelProcessor.processEvent(e);
-        this.lastChannelPos += body.length;
+   public interface ProcessCallBack{
+       void doCallBack(byte[] data);
     }
 
-    public boolean tailBody()
-            throws InterruptedException {
-        try {
-            if (this.in == null) {
-                LOG.debug("tail " + this.file + " : cur file is null");
-                return checkForUpdates();
-            }
-
-            long chlen = this.in.size();
-            boolean madeProgress = readAllFromChannel();
-
-            if (madeProgress) {
-                this.lastChannelSize = this.lastChannelPos;
-
-                this.lastFileMod = this.file.lastModified();
-                LOG.debug("tail " + this.file + " : new data found");
-                return true;
-            }
-
-            long fmod = this.file.lastModified();
-            long flen = this.file.length();
-
-            if ((flen == this.lastChannelSize) && (fmod == this.lastFileMod)) {
-                LOG.debug("tail " + this.file + " : no change");
-                return false;
-            }
-
-            LOG.debug("tail " + this.file + " : file rotated?");
-
-            if ((flen == this.lastChannelSize) && (fmod != this.lastFileMod)) {
-                LOG.debug("tail " + this.file + " : file rotated with new one with " + "same length?");
-
-                this.raf.getFD().sync();
-                Thread.sleep(1000L);
-            }
-
-            if (this.in.size() != chlen) {
-                LOG.debug("tail " + this.file + " : there's extra data to be read from " + "file, aborting file rotation handling");
-
-                return true;
-            }
-
-            if (chlen < this.lastChannelSize) {
-                LOG.debug("tail " + this.file + " : file was truncated, " + "aborting file rotation handling");
-
-                this.lastChannelSize = chlen;
-                this.lastChannelPos = chlen;
-                this.lastFileMod = this.file.lastModified();
-                this.in.position(chlen);
-
-                return false;
-            }
-
-            LOG.debug("tail " + this.file + " : file rotated!");
-            resetRAF();
-
-            return flen > 0L;
-        } catch (IOException e) {
-            LOG.debug(e.getMessage(), e);
-            this.in = null;
-            this.readFailures += 1;
-
-            if (this.readFailures > 3) {
-                LOG.warn("Encountered " + this.readFailures + " failures on " + this.file.getAbsolutePath() + " - sleeping");
-
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean readAllFromChannel()
-            throws IOException, InterruptedException {
-        boolean madeProgress = false;
-
-        int rd = this.in.read(this.buf);
-
-        while (rd > 0) {
-            madeProgress = true;
-
-            int lastRd = 0;
-            boolean progress = false;
-            do {
-                if ((lastRd == -1) && (rd == -1)) {
-                    return true;
-                }
-
-                this.buf.flip();
-
-                extractLines(this.buf);
-
-                lastRd = rd;
-            } while (progress);
-
-            LOG.debug("###buf remaining size=" + this.buf.remaining());
-            if (this.buf.remaining() == 0) {
-                LOG.debug("###buf remaining clear");
-            this.buf.position(0);
-        }
-
-            rd = this.in.read(this.buf);
-            LOG.debug("###custom cursor rd=" + rd);
-        }
-
-        LOG.debug("tail " + this.file + ": last read position " + this.lastChannelPos + ", madeProgress: " + madeProgress);
-
-        return madeProgress;
-    }
 }

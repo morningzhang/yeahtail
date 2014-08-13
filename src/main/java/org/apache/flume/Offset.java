@@ -3,6 +3,7 @@ package org.apache.flume;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.File;
+import java.io.Closeable;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicLong;
@@ -10,7 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Created by zhangliming on 14-8-8.
  */
-public class Offset {
+public class Offset implements Closeable{
     AtomicLong offsetValue;
 
     FileChannel channel;
