@@ -9,9 +9,7 @@ import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-/**
- * Created by zhangliming on 14-8-14.
- */
+
 public class LogConfig {
 
     private static final Logger LOG = LoggerFactory.getLogger(LogConfig.class);
@@ -46,7 +44,7 @@ public class LogConfig {
             SimpleDateFormat sdf=new SimpleDateFormat(pattern);
             logFileName = logFileName + sdf.format(new Date());
         }
-        LOG.info("the realLogFile is %s ",logFileName);
+        LOG.info("the realLogFile is {} ",logFileName);
         return logFileName;
     }
 
@@ -54,7 +52,7 @@ public class LogConfig {
         File logFile= new File(getRealLogFile());
 
         parentPath=logFile.getParentFile().toPath();
-        LOG.info("the parentPath is %s ",parentPath);
+        LOG.info("the parentPath is {} ",parentPath);
 
         cursor=new Cursor(logFile);
         cursor.setSleepTime(fetchInterval);

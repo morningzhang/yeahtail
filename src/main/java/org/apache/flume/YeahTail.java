@@ -144,11 +144,11 @@ public class YeahTail extends AbstractSource
                     Path logFilePath = e.context();
                     String realLogFile=logFilePath.toFile().getPath();
                     if(kind==ENTRY_CREATE){
-                       LOG.info("the new logfile %s is created. ",realLogFile);
+                       LOG.info("the new logfile {} is created. ",realLogFile);
                        for(LogConfig logConfig: logs){
                            //the new date logfile
                            if(realLogFile.equals(logConfig.getRealLogFile())){
-                               LOG.info("matched for the old logfile %s. ",logConfig.getCursor().getLogFile().getName());
+                               LOG.info("matched for the old logfile {}. ",logConfig.getCursor().getLogFile().getName());
                                logConfig.getCursor().setDone(true);
                                logConfig.generateCursor();
                            }

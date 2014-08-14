@@ -51,7 +51,10 @@ public class Cursor implements Closeable{
     private Offset getOffsetObject(File logFile) throws IOException{
         File offsetFile= new File(logFile.getAbsolutePath()+".offset");
         if(!offsetFile.exists()){
-            offsetFile.createNewFile();
+           boolean isOk= offsetFile.createNewFile();
+           if(!isOk){
+                throw new IOException("cloud not be create the offset file "+offsetFile.getName());
+            }
         }
         return new Offset(offsetFile);
     }
@@ -65,7 +68,7 @@ public class Cursor implements Closeable{
         //读取到buffer
         int len=channel.read(buffer);
         if(len==-1){
-            LOG.info("transfer %d for the logfile %s and transfer velocity is greater than log produced. ",len,logFile);
+            LOG.info("transfer size {} for the logfile {} and transfer velocity is greater than log produced. ",len,logFile.getName());
             return len;
         }
         //切割最后一行
@@ -82,7 +85,7 @@ public class Cursor implements Closeable{
         //清除
         buffer.clear();
 
-        LOG.info("transfer %d for the logfile %s ",len,logFile);
+        LOG.info("transfer {} for the logfile {} ",len,logFile.getName());
 
         return len;
     }
@@ -139,7 +142,7 @@ public class Cursor implements Closeable{
                             }
                         }
                         process(processCallBack);
-                        Thread.currentThread().sleep(sleepTime);
+                        Thread.sleep(sleepTime);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -161,7 +164,7 @@ public class Cursor implements Closeable{
             singleThreadExecutor.shutdown();
         }
         closeFileChannel();
-        LOG.info("close the cursor %s is ok",logFile.getName());
+        LOG.info("close the cursor {} is ok",logFile.getName());
     }
 
    public interface ProcessCallBack{
