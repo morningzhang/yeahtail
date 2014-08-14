@@ -17,7 +17,8 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import static java.nio.file.StandardWatchEventKinds.*;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -26,7 +27,7 @@ public class YeahTail extends AbstractSource
 
     private static final Logger LOG = LoggerFactory.getLogger(YeahTail.class);
 
-    final ConcurrentHashMap<String,LogConfig> pathToLogMap =new ConcurrentHashMap<String, LogConfig>();
+    final List<LogConfig> logs =new CopyOnWriteArrayList<LogConfig>();
 
     ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
 
@@ -34,12 +35,12 @@ public class YeahTail extends AbstractSource
 
 
     public YeahTail() {
-        LOG.debug("YeahTail starting......");
+        LOG.info("YeahTail starting......");
 
         try{
            watcher= FileSystems.getDefault().newWatchService();
         }catch (IOException e){
-            e.printStackTrace();
+            LOG.error("",e);
         }
 
     }
@@ -69,13 +70,12 @@ public class YeahTail extends AbstractSource
             config.setPattern(pattern);
 
             config.generateCursor();
-            config.getParentPath().register(watcher,ENTRY_CREATE,ENTRY_DELETE);
-            pathToLogMap.put(config.getRealLogFile(), config);
-
+            config.getParentPath().register(watcher,ENTRY_CREATE);
+            logs.add(config);
 
         } catch (Throwable t) {
             String ss = Throwables.getStackTraceAsString(t);
-            System.err.println("Throwable:"+ss);
+            System.err.println(ss);
             System.exit(1);
         }
 
@@ -85,7 +85,7 @@ public class YeahTail extends AbstractSource
         super.start();
         //start all cursors
         final ChannelProcessor cp=getChannelProcessor();
-        for(LogConfig logConfig:pathToLogMap.values()){
+        for(LogConfig logConfig: logs){
             try {
                  logConfig.getCursor().start(new Cursor.ProcessCallBack() {
                      @Override
@@ -94,7 +94,7 @@ public class YeahTail extends AbstractSource
                      }
                  });
             } catch (Exception e) {
-                e.printStackTrace();
+                LOG.error("", e);
             }
         }
         //start thread
@@ -110,11 +110,11 @@ public class YeahTail extends AbstractSource
     public void stop() {
         super.stop();
         //stop
-        for(LogConfig logConfig:pathToLogMap.values()){
+        for(LogConfig logConfig: logs){
             try {
                 logConfig.getCursor().close();
             } catch (Exception e) {
-                e.printStackTrace();
+                LOG.error("", e);
             }
         }
         //stop watcher
@@ -124,42 +124,33 @@ public class YeahTail extends AbstractSource
             }
             watcher.close();
         }catch (Exception e){
-            e.printStackTrace();
+            LOG.error("", e);
         }
 
     }
 
-    public void handleEvents(){
+    private void handleEvents(){
         while(true){
             try{
                 WatchKey key = watcher.take();
                 for(WatchEvent event : key.pollEvents()){
                     WatchEvent.Kind kind = event.kind();
-
                     if(kind == OVERFLOW){
                         continue;
                     }
-
                     WatchEvent<Path> e = (WatchEvent<Path>)event;
 
                     Path logFilePath = e.context();
                     String realLogFile=logFilePath.toFile().getPath();
-
-                    if(kind==ENTRY_DELETE){
-                        LogConfig logConfig=pathToLogMap.get(realLogFile);
-                        if(logConfig!=null){
-                            logConfig.getCursor().setDone(true);
-                            pathToLogMap.remove(realLogFile);
-                        }
-
-                    }
-                    else
                     if(kind==ENTRY_CREATE){
-                       for(LogConfig logConfig:pathToLogMap.values()){
+                       LOG.info("the new logfile %s is created. ",len,realLogFile);
+                       for(LogConfig logConfig: logs){
+                           //the new date logfile
                            if(realLogFile.equals(logConfig.getRealLogFile())){
-
+                               LOG.info("matched for the old logfile %s. ",logConfig.getCursor().getLogFile().getName());
+                               logConfig.getCursor().setDone(true);
+                               logConfig.generateCursor();
                            }
-
                        }
                     }
                 }
@@ -167,7 +158,7 @@ public class YeahTail extends AbstractSource
                     break;
                 }
             }catch (Exception e){
-                e.printStackTrace();
+                LOG.error("", e);
             }
 
         }

@@ -18,7 +18,9 @@ public class TestWatcherService {
          
     public TestWatcherService(Path path)throws IOException{     
         watcher = FileSystems.getDefault().newWatchService();     
-        path.register(watcher, ENTRY_CREATE,ENTRY_DELETE,ENTRY_MODIFY);     
+        path.register(watcher, ENTRY_CREATE,ENTRY_DELETE,ENTRY_MODIFY);
+        path.register(watcher, ENTRY_CREATE,ENTRY_DELETE,ENTRY_MODIFY);
+        path.register(watcher, ENTRY_CREATE,ENTRY_DELETE,ENTRY_MODIFY);
     }     
          
     public void handleEvents() throws InterruptedException{     

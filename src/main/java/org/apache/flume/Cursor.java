@@ -56,13 +56,16 @@ public class Cursor implements Closeable{
         return new Offset(offsetFile);
     }
 
-
+    public File getLogFile() {
+        return logFile;
+    }
 
     public synchronized int process(ProcessCallBack processCallBack) throws IOException{
         init(logFile);
         //读取到buffer
         int len=channel.read(buffer);
         if(len==-1){
+            LOG.info("transfer %d for the logfile %s and transfer velocity is greater than log produced. ",len,logFile);
             return len;
         }
         //切割最后一行
@@ -78,6 +81,8 @@ public class Cursor implements Closeable{
         logOffset.increaseBy(data.length);
         //清除
         buffer.clear();
+
+        LOG.info("transfer %d for the logfile %s ",len,logFile);
 
         return len;
     }
@@ -127,6 +132,7 @@ public class Cursor implements Closeable{
                         //2.新的日期已经生成
                         //3.满足以上条件再重试300次
                         if(process(processCallBack)==-1&&done){
+                            LOG.info("left retryTimes %d .it would be closed.",retryTimes);
                             if(--retryTimes<=0){
                                 close();
                                 break;
@@ -155,6 +161,7 @@ public class Cursor implements Closeable{
             singleThreadExecutor.shutdown();
         }
         closeFileChannel();
+        LOG.info("close the cursor %s is ok",logFile.getName());
     }
 
    public interface ProcessCallBack{

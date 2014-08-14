@@ -1,5 +1,8 @@
 package org.apache.flume;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -10,6 +13,8 @@ import java.util.Date;
  * Created by zhangliming on 14-8-14.
  */
 public class LogConfig {
+
+    private static final Logger LOG = LoggerFactory.getLogger(LogConfig.class);
 
     private String logFileName;
     private String pattern;
@@ -35,36 +40,23 @@ public class LogConfig {
         this.pattern = pattern;
     }
 
-    public boolean isAlwaysIncludePattern() {
-        return alwaysIncludePattern;
-    }
-
-    public String getLogFileName() {
-        return logFileName;
-    }
-
-    public long getFetchInterval() {
-        return fetchInterval;
-    }
-
-    public String getPattern() {
-        return pattern;
-    }
-
     public String getRealLogFile(){
         String logFileName=this.logFileName;
         if(alwaysIncludePattern){
             SimpleDateFormat sdf=new SimpleDateFormat(pattern);
             logFileName = logFileName + sdf.format(new Date());
         }
+        LOG.info("the realLogFile is %s ",logFileName);
         return logFileName;
     }
 
     public void generateCursor() throws IOException{
         File logFile= new File(getRealLogFile());
-        parentPath=logFile.getParentFile().toPath();
 
-        cursor=new Cursor(new File(getRealLogFile()));
+        parentPath=logFile.getParentFile().toPath();
+        LOG.info("the parentPath is %s ",parentPath);
+
+        cursor=new Cursor(logFile);
         cursor.setSleepTime(fetchInterval);
     }
 
