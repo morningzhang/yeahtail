@@ -10,11 +10,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.WatchEvent;
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
+import java.nio.file.*;
+
 import static java.nio.file.StandardWatchEventKinds.*;
 
 import java.util.Set;
@@ -80,7 +77,7 @@ public class YeahTail extends AbstractSource
     }
 
     public void start() {
-        super.start();
+
         //start all cursors
         final ChannelProcessor cp=getChannelProcessor();
         for(LogConfig logConfig: logs){
@@ -91,9 +88,12 @@ public class YeahTail extends AbstractSource
                          cp.processEvent(EventBuilder.withBody(data));
                      }
                  });
+                LOG.info("logfile {} started.",logConfig.getCursor().getLogFile().getName());
             } catch (Exception e) {
                 LOG.error("", e);
             }
+
+            super.start();
         }
         //start thread
         singleThreadExecutor.submit(new Runnable() {
@@ -117,19 +117,11 @@ public class YeahTail extends AbstractSource
         }
         //stop watcher
         try {
+            watcher.close();
+            //shutdown the thread
             if(!singleThreadExecutor.isShutdown()){
                 singleThreadExecutor.shutdown();
             }
-
-            try {
-                while(!singleThreadExecutor.awaitTermination(30, TimeUnit.SECONDS)){
-                    LOG.info("waiting for terminated........");
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-            watcher.close();
         }catch (Exception e){
             LOG.error("", e);
         }
@@ -138,33 +130,32 @@ public class YeahTail extends AbstractSource
 
     private void handleEvents(){
         while(true){
-            try{
+            try {
                 WatchKey key = watcher.take();
-                for(WatchEvent event : key.pollEvents()){
+                for (WatchEvent event : key.pollEvents()) {
                     WatchEvent.Kind kind = event.kind();
-                    if(kind == OVERFLOW){
+                    if (kind == OVERFLOW) {
                         continue;
                     }
                     @SuppressWarnings("unchecked")
-                    WatchEvent<Path> e = (WatchEvent<Path>)event;
+                    WatchEvent<Path> e = (WatchEvent<Path>) event;
 
                     Path logFilePath = e.context();
-                    String realLogFile=logFilePath.toFile().getPath();
-                    if(kind==ENTRY_CREATE){
-                       LOG.info("the new logfile {} is created. ",realLogFile);
-                       for(LogConfig logConfig: logs){
-                           //the new date logfile
-                           if(realLogFile.equals(logConfig.getRealLogFile())){
-                               LOG.info("matched for the old logfile {}. ",logConfig.getCursor().getLogFile().getName());
-                               logConfig.getCursor().setDone(true);
-                               logConfig.generateCursor();
-                           }
-                       }
+                    String realLogFile = logFilePath.toFile().getPath();
+                    if (kind == ENTRY_CREATE) {
+                        LOG.info("the new logfile {} is created. ", realLogFile);
+                        for (LogConfig logConfig : logs) {
+                            //the new date logfile
+                            if (realLogFile.equals(logConfig.getRealLogFile())) {
+                                LOG.info("matched for the old logfile {}. ", logConfig.getCursor().getLogFile().getName());
+                                logConfig.getCursor().setDone(true);
+                                logConfig.generateCursor();
+                            }
+                        }
                     }
                 }
-                if(!key.reset()){
-                    break;
-                }
+            }catch (ClosedWatchServiceException cwse){
+                break;
             }catch (Exception e){
                 LOG.error("", e);
             }

@@ -14,7 +14,7 @@ public class testLogConfig {
         logConfig.setAlwaysIncludePattern(false);
         logConfig.setPattern(".yyyy-MM-dd");
         logConfig.setFetchInterval(1000L);
-        logConfig.setLogFileName(new File("logs/aaa.log").getAbsolutePath());
+        logConfig.setLogFileName(new File("logs/aaa.log.2014-08-14").getAbsolutePath());
     }
     @Test
     public void testGetRealLogFile(){

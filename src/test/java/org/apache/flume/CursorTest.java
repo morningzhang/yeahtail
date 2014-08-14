@@ -14,7 +14,7 @@ public class CursorTest {
 
     @org.junit.Before
     public void setUp() throws Exception {
-        c =new Cursor(new File("logs/aaa.log"));
+        c =new Cursor(new File("logs/aaa.log.2014-08-14"));
     }
 
     @org.junit.Test

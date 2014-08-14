@@ -12,7 +12,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class Cursor implements Closeable{
     private static final Logger LOG = LoggerFactory.getLogger(Cursor.class);
@@ -86,7 +85,7 @@ public class Cursor implements Closeable{
         //清除
         buffer.clear();
 
-        LOG.info("transfer {} for the logfile {} ",len,logFile.getName());
+        LOG.info("transfer {} for the logfile {} ",data.length,logFile.getName());
 
         return len;
     }
@@ -128,7 +127,7 @@ public class Cursor implements Closeable{
             @Override
             public void run() {
                 //重试30次
-                int retryTimes=30;
+                int retryTimes=300;
                 while (true){
 
                     try {
@@ -138,7 +137,6 @@ public class Cursor implements Closeable{
                         if(process(processCallBack)==-1&&done){
                             LOG.info("left retryTimes {} .it would be closed.",retryTimes);
                             if(--retryTimes<=0){
-                                close();
                                 break;
                             }
                         }
@@ -161,19 +159,11 @@ public class Cursor implements Closeable{
     }
 
     public synchronized void close() throws IOException{
+        closeFileChannel();
+        setDone(true);
         if(!singleThreadExecutor.isShutdown()){
             singleThreadExecutor.shutdown();
         }
-        closeFileChannel();
-        setDone(true);
-        try {
-            while(!singleThreadExecutor.awaitTermination(30, TimeUnit.SECONDS)){
-                LOG.info("waiting for terminated........");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
         LOG.info("close the cursor {} is ok",logFile.getName());
     }
 
