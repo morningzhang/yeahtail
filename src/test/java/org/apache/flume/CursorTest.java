@@ -19,6 +19,7 @@ public class CursorTest {
 
     @org.junit.Test
     public void testCompactBuffer() throws Exception {
+
         ByteBuffer b=ByteBuffer.allocate(6).put((byte)10).put((byte) 10).put((byte) 1).put((byte)3);
 
         int a= c.compactBuffer(b);
@@ -49,18 +50,14 @@ public class CursorTest {
 
     @Test
     public void testStart(){
-        try {
+
             c.start(new Cursor.ProcessCallBack() {
                 @Override
                 public void doCallBack(byte[] data) {
-                    System.out.print(new String(data));
+                    System.out.print(new String(data));//当一行的记录的大小超过默认的缓冲的大小。直接newstring会出现中文乱码
                 }
             });
-        } catch (IOException e) {
-            e.printStackTrace();
-        }catch (InterruptedException e1){
-            e1.printStackTrace();
-        }
+
     }
 
 

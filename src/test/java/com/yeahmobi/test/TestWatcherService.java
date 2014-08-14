@@ -24,14 +24,14 @@ public class TestWatcherService {
     public void handleEvents() throws InterruptedException{     
         while(true){     
             WatchKey key = watcher.take();     
-            for(WatchEvent event : key.pollEvents()){     
+            for(WatchEvent event : key.pollEvents()){
                 WatchEvent.Kind kind = event.kind();     
                      
                 if(kind == OVERFLOW){//事件可能lost or discarded     
                     continue;     
                 }     
                      
-                WatchEvent e = (WatchEvent)event;
+                WatchEvent e = (WatchEvent<Path>)event;
                 //e.
                 Path fileName = (Path)e.context();
                      

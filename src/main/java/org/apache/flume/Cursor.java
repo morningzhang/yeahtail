@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class Cursor implements Closeable{
     private static final Logger LOG = LoggerFactory.getLogger(Cursor.class);
@@ -19,6 +21,7 @@ public class Cursor implements Closeable{
     private ByteBuffer buffer=ByteBuffer.allocate(BUFFER_SIZE);
 
     /* file and channel */
+    private File logFile;
     private RandomAccessFile logRandomAccessFile;
     private FileChannel channel;
     /* offset */
@@ -27,13 +30,21 @@ public class Cursor implements Closeable{
     /* sleep time*/
     private long sleepTime=1000;//1s
 
-   public Cursor(File logFile) throws IOException{
+    ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
 
-        logRandomAccessFile=getLogRandomAccessFile(logFile);
-        logOffset=getOffsetObject(logFile);
+    public Cursor(File logFile)  throws IOException{
+        this.logFile=logFile;
+        init(logFile);
+    }
 
-        channel=getLogFileChannel(logRandomAccessFile,logOffset);
+    private void init(File logFile) throws IOException{
+        logRandomAccessFile=new RandomAccessFile(logFile,"r");
+        channel=logRandomAccessFile.getChannel();
 
+        if(logOffset==null){
+            logOffset=getOffsetObject(logFile);
+        }
+        channel.position(logOffset.getCurrentValue());
     }
 
 
@@ -45,17 +56,10 @@ public class Cursor implements Closeable{
         return new Offset(offsetFile);
     }
 
-    private RandomAccessFile getLogRandomAccessFile(File logFile) throws IOException{
-        return new RandomAccessFile(logFile,"r");
-    }
 
-    private FileChannel getLogFileChannel(RandomAccessFile logRandomAccessFile,Offset logOffset) throws IOException{
-      logRandomAccessFile.seek(logOffset.getCurrentValue());
-      return logRandomAccessFile.getChannel();
-    }
 
     public synchronized int process(ProcessCallBack processCallBack) throws IOException{
-        channel.position(logOffset.getCurrentValue());
+        init(logFile);
         //读取到buffer
         int len=channel.read(buffer);
         if(len==-1){
@@ -109,28 +113,48 @@ public class Cursor implements Closeable{
         this.done=done;
     }
 
-    public void start(ProcessCallBack processCallBack) throws IOException,InterruptedException{
-        //重试300次
-        int retryTimes=300;
+    public void start(final ProcessCallBack processCallBack){
 
-        while (true){
-            //1.没有可以读的了
-            //2.新的日期已经生成
-            //3.满足以上条件再重试300次
-            if(process(processCallBack)==-1&&done){
-                if(--retryTimes<=0){
-                    close();
-                    break;
+        singleThreadExecutor.submit(new Runnable() {
+            @Override
+            public void run() {
+                //重试300次
+                int retryTimes=300;
+                while (true){
+
+                    try {
+                        //1.没有可以读的了
+                        //2.新的日期已经生成
+                        //3.满足以上条件再重试300次
+                        if(process(processCallBack)==-1&&done){
+                            if(--retryTimes<=0){
+                                close();
+                                break;
+                            }
+                        }
+                        process(processCallBack);
+                        Thread.currentThread().sleep(sleepTime);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+
                 }
             }
-            Thread.currentThread().sleep(sleepTime);
-        }
+        });
+
     }
 
-    public synchronized void close(){
-        Closeables.closeQuietly(channel);
-        Closeables.closeQuietly(logRandomAccessFile);
-        Closeables.closeQuietly(logOffset);
+    private void closeFileChannel() throws IOException{
+        Closeables.close(channel,true);
+        Closeables.close(logRandomAccessFile, true);
+        Closeables.close(logOffset, true);
+    }
+
+    public synchronized void close() throws IOException{
+        if(!singleThreadExecutor.isShutdown()){
+            singleThreadExecutor.shutdown();
+        }
+        closeFileChannel();
     }
 
    public interface ProcessCallBack{
