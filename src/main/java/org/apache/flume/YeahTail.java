@@ -53,7 +53,7 @@ public class YeahTail extends AbstractSource
         //the log file always have date pattern
         boolean alwaysIncludePattern = context.getBoolean("alwaysIncludePattern", false);
         //fetch interval
-        long fetchInterval = context.getLong("fetchInterval", Long.valueOf(1000).longValue());
+        long fetchInterval = context.getLong("fetchInterval",1000L);
 
 
         Preconditions.checkArgument(logFileName != null, "Null File is an illegal argument");
@@ -138,12 +138,13 @@ public class YeahTail extends AbstractSource
                     if(kind == OVERFLOW){
                         continue;
                     }
+                    @SuppressWarnings("unchecked")
                     WatchEvent<Path> e = (WatchEvent<Path>)event;
 
                     Path logFilePath = e.context();
                     String realLogFile=logFilePath.toFile().getPath();
                     if(kind==ENTRY_CREATE){
-                       LOG.info("the new logfile %s is created. ",len,realLogFile);
+                       LOG.info("the new logfile %s is created. ",realLogFile);
                        for(LogConfig logConfig: logs){
                            //the new date logfile
                            if(realLogFile.equals(logConfig.getRealLogFile())){
