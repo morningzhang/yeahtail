@@ -17,17 +17,15 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import static java.nio.file.StandardWatchEventKinds.*;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.Set;
+import java.util.concurrent.*;
 
 public class YeahTail extends AbstractSource
         implements EventDrivenSource, Configurable {
 
     private static final Logger LOG = LoggerFactory.getLogger(YeahTail.class);
 
-    final List<LogConfig> logs =new CopyOnWriteArrayList<LogConfig>();
+    final Set<LogConfig> logs =new CopyOnWriteArraySet<LogConfig>();
 
     ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
 
@@ -122,6 +120,15 @@ public class YeahTail extends AbstractSource
             if(!singleThreadExecutor.isShutdown()){
                 singleThreadExecutor.shutdown();
             }
+
+            try {
+                while(!singleThreadExecutor.awaitTermination(30, TimeUnit.SECONDS)){
+                    LOG.info("waiting for terminated........");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
             watcher.close();
         }catch (Exception e){
             LOG.error("", e);

@@ -12,6 +12,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Cursor implements Closeable{
     private static final Logger LOG = LoggerFactory.getLogger(Cursor.class);
@@ -68,7 +69,7 @@ public class Cursor implements Closeable{
         //读取到buffer
         int len=channel.read(buffer);
         if(len==-1){
-            LOG.info("transfer size {} for the logfile {} and transfer velocity is greater than log produced. ",len,logFile.getName());
+            //LOG.info("transfer size {} for the logfile {} and transfer velocity is greater than log produced. ",len,logFile.getName());
             return len;
         }
         //切割最后一行
@@ -126,8 +127,8 @@ public class Cursor implements Closeable{
         singleThreadExecutor.submit(new Runnable() {
             @Override
             public void run() {
-                //重试300次
-                int retryTimes=300;
+                //重试30次
+                int retryTimes=30;
                 while (true){
 
                     try {
@@ -135,7 +136,7 @@ public class Cursor implements Closeable{
                         //2.新的日期已经生成
                         //3.满足以上条件再重试300次
                         if(process(processCallBack)==-1&&done){
-                            LOG.info("left retryTimes %d .it would be closed.",retryTimes);
+                            LOG.info("left retryTimes {} .it would be closed.",retryTimes);
                             if(--retryTimes<=0){
                                 close();
                                 break;
@@ -164,6 +165,15 @@ public class Cursor implements Closeable{
             singleThreadExecutor.shutdown();
         }
         closeFileChannel();
+        setDone(true);
+        try {
+            while(!singleThreadExecutor.awaitTermination(30, TimeUnit.SECONDS)){
+                LOG.info("waiting for terminated........");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         LOG.info("close the cursor {} is ok",logFile.getName());
     }
 
