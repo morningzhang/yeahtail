@@ -9,6 +9,7 @@ import org.apache.flume.event.EventBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
 
@@ -50,7 +51,7 @@ public class YeahTail extends AbstractSource
         //fetch interval
         long fetchInterval = context.getLong("fetchInterval",1000L);
         //buffer size
-        int bufferSize = context.getInteger("bufferSize",409600);
+        int bufferSize = context.getInteger("bufferSize", 409600);
 
 
         Preconditions.checkArgument(logFileName != null, "Null File is an illegal argument");
@@ -144,18 +145,46 @@ public class YeahTail extends AbstractSource
                     @SuppressWarnings("unchecked")
                     WatchEvent<Path> e = (WatchEvent<Path>) event;
 
-                    Path logFilePath = e.context();
-                    String realLogFile = logFilePath.toFile().getPath();
-                    if (kind == ENTRY_CREATE) {
-                        LOG.info("the new logfile {} is created. ", realLogFile);
-                        for (LogConfig logConfig : logs) {
-                            //the new date logfile
-                            if (realLogFile.equals(logConfig.getRealLogFile())) {
-                                LOG.info("matched for the old logfile {}. ", logConfig.getCursor().getLogFile().getName());
-                                logConfig.getCursor().setDone(true);
-                                logConfig.generateCursor();
+                    String newFileName = e.context().toFile().getPath();
+                    //entry created and would not be a offset file
+                    if (kind == ENTRY_CREATE&&!newFileName.endsWith(".offset")) {
+                        LOG.info("the new file {} is created. ", newFileName);
+
+                        LOG.info("start check log date roll for today log.");
+                        checkLogDateRoll(newFileName, new CheckDateRoll() {
+                            @Override
+                            public boolean doCheck(String newLogFileName, LogConfig logConfig) {
+                                if (newLogFileName.equals(logConfig.getRealLogFile())) {
+
+                                    File logFile=logConfig.getCursor().getLogFile();
+                                    LOG.info("matched file {} and {}. ", newLogFileName, logFile.getName());
+                                    //set done
+                                    logConfig.getCursor().setDone(true);
+
+                                    if(!logConfig.isAlwaysIncludePattern()){
+                                        File newOffsetFile=new File(Cursor.getLogOffsetFileName(logFile));
+                                        try {
+                                            logConfig.getCursor().getLogOffset().getOffsetFile().renameTo(newOffsetFile);
+                                        }catch (SecurityException se){
+                                            LOG.error("", se);
+                                        }
+                                    }
+
+                                    try{
+                                        logConfig.generateCursor();
+                                    }catch (IOException e){
+                                        LOG.error("", e);
+                                    }
+                                    return true;
+                                }
+                                return false;
                             }
-                        }
+                        });
+
+
+
+
+
                     }
                 }
             }catch (ClosedWatchServiceException cwse){
@@ -167,6 +196,23 @@ public class YeahTail extends AbstractSource
         }
     }
 
+      private void checkLogDateRoll(String newLogFileName, CheckDateRoll checkDateRoll) throws IOException{
+        boolean isMatched=false;
+        for (LogConfig logConfig : logs) {
+            //the new date logfile
+            if (checkDateRoll.doCheck(newLogFileName,logConfig)) {
+                isMatched=true;
+                break;
+            }
+        }
+        //no matched file
+        if(!isMatched){
+            LOG.info("no matched for the file {}. ",newLogFileName);
+        }
+    }
 
+    public interface CheckDateRoll{
+        public boolean doCheck(String newLogFileName,LogConfig logConfig);
+    }
 
 }

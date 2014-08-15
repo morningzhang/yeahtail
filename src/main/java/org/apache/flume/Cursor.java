@@ -46,20 +46,31 @@ public class Cursor implements Closeable{
         channel.position(logOffset.getCurrentValue());
     }
 
+    public static  String getLogOffsetFileName(File logFile) {
+        return logFile.getParent()+"/."+logFile.getName()+".offset";
+    }
 
     private Offset getOffsetObject(File logFile) throws IOException{
-        File offsetFile= new File(logFile.getAbsolutePath()+".offset");
+        File offsetFile= new File(getLogOffsetFileName(logFile));
         if(!offsetFile.exists()){
            boolean isOk= offsetFile.createNewFile();
            if(!isOk){
                 throw new IOException("cloud not be create the offset file "+offsetFile.getName());
             }
+            LOG.info("create a new offset file {}",offsetFile.getAbsolutePath());
+        }else{
+            LOG.info("find a existed offset file {} ",offsetFile.getAbsolutePath());
         }
+
         return new Offset(offsetFile);
     }
 
     public File getLogFile() {
         return logFile;
+    }
+
+    public Offset getLogOffset() {
+        return logOffset;
     }
 
     public synchronized int process(ProcessCallBack processCallBack,int lastReadSize) throws IOException{
@@ -145,7 +156,7 @@ public class Cursor implements Closeable{
                         }
                         Thread.sleep(sleepTime);
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        LOG.error("", e);
                     }
 
                 }

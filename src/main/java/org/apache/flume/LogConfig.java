@@ -43,18 +43,26 @@ public class LogConfig {
         this.bufferSize = bufferSize;
     }
 
+    public String getLogFileName() {
+        return logFileName;
+    }
+
     public String getRealLogFile(){
         String logFileName=this.logFileName;
         if(alwaysIncludePattern){
             SimpleDateFormat sdf=new SimpleDateFormat(pattern);
             logFileName = logFileName + sdf.format(new Date());
         }
-        LOG.info("the realLogFile is {} ",logFileName);
+
         return logFileName;
+    }
+    public boolean isAlwaysIncludePattern() {
+        return alwaysIncludePattern;
     }
 
     public void generateCursor() throws IOException{
         File logFile= new File(getRealLogFile());
+        LOG.info("the realLogFile is {} ",logFile.getAbsolutePath());
 
         parentPath=logFile.getParentFile().toPath();
         LOG.info("the parentPath is {} ",parentPath);
@@ -70,4 +78,16 @@ public class LogConfig {
     public Path getParentPath() {
         return parentPath;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+        if(!(obj instanceof LogConfig)){
+            return false;
+        }
+        if(!getLogFileName().equals(((LogConfig)obj).getLogFileName())){
+            return false;
+        }
+        return true;
+    }
+
 }
