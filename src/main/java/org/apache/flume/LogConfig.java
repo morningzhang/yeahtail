@@ -18,6 +18,7 @@ public class LogConfig {
     private String pattern;
     private boolean alwaysIncludePattern;
     private long fetchInterval;
+    private int bufferSize;
 
     private Cursor cursor;
     private Path parentPath;
@@ -38,6 +39,10 @@ public class LogConfig {
         this.pattern = pattern;
     }
 
+    public void setBufferSize(int bufferSize) {
+        this.bufferSize = bufferSize;
+    }
+
     public String getRealLogFile(){
         String logFileName=this.logFileName;
         if(alwaysIncludePattern){
@@ -54,7 +59,7 @@ public class LogConfig {
         parentPath=logFile.getParentFile().toPath();
         LOG.info("the parentPath is {} ",parentPath);
 
-        cursor=new Cursor(logFile);
+        cursor=new Cursor(logFile,bufferSize);
         cursor.setSleepTime(fetchInterval);
     }
 

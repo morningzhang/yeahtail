@@ -16,9 +16,7 @@ import java.util.concurrent.Executors;
 public class Cursor implements Closeable{
     private static final Logger LOG = LoggerFactory.getLogger(Cursor.class);
 
-    /* buffer size=400K  */
-    private static final int BUFFER_SIZE=409600;
-    private ByteBuffer buffer=ByteBuffer.allocate(BUFFER_SIZE);
+    private ByteBuffer buffer;
 
     /* file and channel */
     private File logFile;
@@ -32,9 +30,11 @@ public class Cursor implements Closeable{
 
     ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
 
-    public Cursor(File logFile)  throws IOException{
+    public Cursor(File logFile,int bufferSize)  throws IOException{
         this.logFile=logFile;
+        buffer=ByteBuffer.allocateDirect(bufferSize);
     }
+
 
     private void init(File logFile) throws IOException{
         logRandomAccessFile=new RandomAccessFile(logFile,"r");

@@ -49,12 +49,15 @@ public class YeahTail extends AbstractSource
         boolean alwaysIncludePattern = context.getBoolean("alwaysIncludePattern", false);
         //fetch interval
         long fetchInterval = context.getLong("fetchInterval",1000L);
+        //buffer size
+        int bufferSize = context.getInteger("bufferSize",409600);
 
 
         Preconditions.checkArgument(logFileName != null, "Null File is an illegal argument");
         Preconditions.checkArgument(pattern != null&&pattern.length()>0, "Null or blank pattern is an illegal argument");
 
         Preconditions.checkArgument(fetchInterval > 0L, "fetchInterval <=0 is an illegal argument");
+        Preconditions.checkArgument(bufferSize > 0L, "bufferSize <=0 is an illegal argument");
 
         try {
 
@@ -63,6 +66,7 @@ public class YeahTail extends AbstractSource
             config.setFetchInterval(fetchInterval);
             config.setLogFileName(logFileName);
             config.setPattern(pattern);
+            config.setBufferSize(bufferSize);
 
             config.generateCursor();
             config.getParentPath().register(watcher,ENTRY_CREATE);
