@@ -42,7 +42,7 @@ public class CursorTest {
                 public void doCallBack(byte[] data) {
                     System.out.print(new String(data));
                 }
-            });
+            },-1);
         } catch (IOException e) {
             e.printStackTrace();
         }

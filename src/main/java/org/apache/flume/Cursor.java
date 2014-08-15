@@ -34,7 +34,6 @@ public class Cursor implements Closeable{
 
     public Cursor(File logFile)  throws IOException{
         this.logFile=logFile;
-        init(logFile);
     }
 
     private void init(File logFile) throws IOException{
@@ -63,8 +62,11 @@ public class Cursor implements Closeable{
         return logFile;
     }
 
-    public synchronized int process(ProcessCallBack processCallBack) throws IOException{
-        init(logFile);
+    public synchronized int process(ProcessCallBack processCallBack,int lastReadSize) throws IOException{
+        //如果上次读到了文件的末尾，重新获取channel
+        if(lastReadSize==-1){
+            init(logFile);
+        }
         //读取到buffer
         int len=channel.read(buffer);
         if(len==-1){
@@ -127,20 +129,20 @@ public class Cursor implements Closeable{
             @Override
             public void run() {
                 //重试30次
-                int retryTimes=300;
+                int retryTimes=300,lastReadSize=-1;
                 while (true){
 
                     try {
                         //1.没有可以读的了
                         //2.新的日期已经生成
                         //3.满足以上条件再重试300次
-                        if(process(processCallBack)==-1&&done){
+                        lastReadSize= process(processCallBack,lastReadSize);
+                        if(lastReadSize==-1&&done){
                             LOG.info("left retryTimes {} .it would be closed.",retryTimes);
                             if(--retryTimes<=0){
                                 break;
                             }
                         }
-                        process(processCallBack);
                         Thread.sleep(sleepTime);
                     } catch (Exception e) {
                         e.printStackTrace();
