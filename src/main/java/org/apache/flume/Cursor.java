@@ -37,6 +37,10 @@ public class Cursor implements Closeable{
 
 
     private void init(File logFile) throws IOException{
+        if(channel!=null||logRandomAccessFile!=null){
+            closeFileChannel();
+        }
+
         logRandomAccessFile=new RandomAccessFile(logFile,"r");
         channel=logRandomAccessFile.getChannel();
 
@@ -168,11 +172,15 @@ public class Cursor implements Closeable{
     private void closeFileChannel() throws IOException{
         Closeables.close(channel,true);
         Closeables.close(logRandomAccessFile, true);
+    }
+
+    private void closeOffset() throws IOException{
         Closeables.close(logOffset, true);
     }
 
     public synchronized void close() throws IOException{
         closeFileChannel();
+        closeOffset();
         setDone(true);
         if(!singleThreadExecutor.isShutdown()){
             singleThreadExecutor.shutdown();
