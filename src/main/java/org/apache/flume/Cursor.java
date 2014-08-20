@@ -50,6 +50,8 @@ public class Cursor implements Closeable{
         return logFile.getParent()+"/."+logFile.getName()+".offset";
     }
 
+
+
     private Offset getOffsetObject(File logFile) throws IOException{
         File offsetFile= new File(getLogOffsetFileName(logFile));
         if(!offsetFile.exists()){
