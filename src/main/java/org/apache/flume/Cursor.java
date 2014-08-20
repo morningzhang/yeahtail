@@ -37,16 +37,16 @@ public class Cursor implements Closeable{
 
 
     private void init(File logFile) throws IOException{
-        if(channel!=null||logRandomAccessFile!=null){
-            closeFileChannel();
-        }
-
+        //close last time opened
+        closeFileChannel();
+         //open for this time
         logRandomAccessFile=new RandomAccessFile(logFile,"r");
         channel=logRandomAccessFile.getChannel();
-
+        //if opened,need not open again
         if(logOffset==null){
             logOffset=getOffsetObject(logFile);
         }
+        //seek to current position
         channel.position(logOffset.getCurrentValue());
     }
 
@@ -170,12 +170,18 @@ public class Cursor implements Closeable{
     }
 
     private void closeFileChannel() throws IOException{
-        Closeables.close(channel,true);
-        Closeables.close(logRandomAccessFile, true);
+        if(channel!=null&&channel.isOpen()){
+            channel.close();
+        }
+        if(logRandomAccessFile!=null){
+            logRandomAccessFile.close();
+        }
     }
 
     private void closeOffset() throws IOException{
-        Closeables.close(logOffset, true);
+        if(logOffset!=null){
+            logOffset.close();
+        }
     }
 
     public synchronized void close() throws IOException{
