@@ -1,6 +1,5 @@
 package org.apache.flume;
 
-import com.google.common.io.Closeables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,8 +9,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class Cursor implements Closeable{
     private static final Logger LOG = LoggerFactory.getLogger(Cursor.class);
@@ -24,11 +21,7 @@ public class Cursor implements Closeable{
     private FileChannel channel;
     /* offset */
     private Offset logOffset;
-    private volatile boolean done=false;
-    /* sleep time*/
-    private long sleepTime=1000;//1s
 
-    ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
 
     public Cursor(File logFile,int bufferSize)  throws IOException{
         this.logFile=logFile;
@@ -37,12 +30,16 @@ public class Cursor implements Closeable{
 
 
     private void init(File logFile) throws IOException{
+        //close last time opened
+        closeFileChannel();
+        //open for this time
         logRandomAccessFile=new RandomAccessFile(logFile,"r");
         channel=logRandomAccessFile.getChannel();
-
+        //if opened,need not open again
         if(logOffset==null){
             logOffset=getOffsetObject(logFile);
         }
+        //seek to current position
         channel.position(logOffset.getCurrentValue());
     }
 
@@ -50,13 +47,11 @@ public class Cursor implements Closeable{
         return logFile.getParent()+"/."+logFile.getName()+".offset";
     }
 
-
-
     private Offset getOffsetObject(File logFile) throws IOException{
         File offsetFile= new File(getLogOffsetFileName(logFile));
         if(!offsetFile.exists()){
-           boolean isOk= offsetFile.createNewFile();
-           if(!isOk){
+            boolean isOk= offsetFile.createNewFile();
+            if(!isOk){
                 throw new IOException("cloud not be create the offset file "+offsetFile.getName());
             }
             LOG.info("create a new offset file {}",offsetFile.getAbsolutePath());
@@ -71,19 +66,13 @@ public class Cursor implements Closeable{
         return logFile;
     }
 
-    public Offset getLogOffset() {
-        return logOffset;
-    }
-
-    public synchronized int process(ProcessCallBack processCallBack,int lastReadSize) throws IOException{
-        //如果上次读到了文件的末尾，重新获取channel
-        if(lastReadSize==-1){
-            init(logFile);
-        }
+    public synchronized int process(ProcessCallBack processCallBack) throws IOException{
         //读取到buffer
         int len=channel.read(buffer);
         if(len==-1){
-            //LOG.info("transfer size {} for the logfile {} and transfer velocity is greater than log produced. ",len,logFile.getName());
+            //如果读到了文件的末尾，重新获取channel
+            init(logFile);
+            LOG.info("transfer size {} for the logfile {} and transfer velocity is greater than log produced.",0,logFile.getName());
             return len;
         }
         //切割最后一行
@@ -128,62 +117,41 @@ public class Cursor implements Closeable{
         return 0;
     }
 
-    public void setSleepTime(long sleepTime){
-        this.sleepTime=sleepTime;
-    }
 
-    public void setDone(boolean done){
-        this.done=done;
-    }
-
-    public void start(final ProcessCallBack processCallBack){
-
-        singleThreadExecutor.submit(new Runnable() {
-            @Override
-            public void run() {
-                //重试30次
-                int retryTimes=300,lastReadSize=-1;
-                while (true){
-
-                    try {
-                        //1.没有可以读的了
-                        //2.新的日期已经生成
-                        //3.满足以上条件再重试300次
-                        lastReadSize= process(processCallBack,lastReadSize);
-                        if(lastReadSize==-1&&done){
-                            LOG.info("left retryTimes {} .it would be closed.",retryTimes);
-                            if(--retryTimes<=0){
-                                break;
-                            }
-                        }
-                        Thread.sleep(sleepTime);
-                    } catch (Exception e) {
-                        LOG.error("", e);
-                    }
-
-                }
-            }
-        });
-
-    }
 
     private void closeFileChannel() throws IOException{
-        Closeables.close(channel,true);
-        Closeables.close(logRandomAccessFile, true);
-        Closeables.close(logOffset, true);
+        if(channel!=null&&channel.isOpen()){
+            channel.close();
+        }
+        if(logRandomAccessFile!=null){
+            logRandomAccessFile.close();
+        }
+    }
+
+    private void closeOffset() throws IOException{
+        if(logOffset!=null){
+            logOffset.close();
+        }
     }
 
     public synchronized void close() throws IOException{
         closeFileChannel();
-        setDone(true);
-        if(!singleThreadExecutor.isShutdown()){
-            singleThreadExecutor.shutdown();
-        }
+        closeOffset();
         LOG.info("close the cursor {} is ok",logFile.getName());
     }
 
-   public interface ProcessCallBack{
-       void doCallBack(byte[] data);
+    public interface ProcessCallBack{
+        void doCallBack(byte[] data);
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if(!(obj instanceof Cursor)){
+            return false;
+        }
+        if(!getLogFile().equals(((Cursor)obj).getLogFile())){
+            return false;
+        }
+        return true;
+    }
 }

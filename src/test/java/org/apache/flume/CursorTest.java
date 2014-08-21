@@ -42,22 +42,10 @@ public class CursorTest {
                 public void doCallBack(byte[] data) {
                     System.out.print(new String(data));
                 }
-            },-1);
+            });
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
-
-    @Test
-    public void testStart(){
-
-            c.start(new Cursor.ProcessCallBack() {
-                @Override
-                public void doCallBack(byte[] data) {
-                    System.out.print(new String(data));//当一行的记录的大小超过默认的缓冲的大小。直接newstring会出现中文乱码
-                }
-            });
-
     }
 
 
