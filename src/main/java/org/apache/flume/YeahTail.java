@@ -16,6 +16,7 @@ import java.nio.file.*;
 import static java.nio.file.StandardWatchEventKinds.*;
 
 import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Set;
 import java.util.concurrent.*;
 
@@ -179,13 +180,13 @@ public class YeahTail extends AbstractSource
                     WatchEvent<Path> e = (WatchEvent<Path>) event;
 
                     String newFileName = e.context().toFile().getPath();
-                    //entry created and would not be a offset file
+                    //elastModifiedntry created and would not be a offset file
                     if (kind == ENTRY_CREATE && !newFileName.endsWith(".offset")) {
                         LOG.info("the new file {} is created. ", newFileName);
 
                         for (LogConfig logConfig : logs) {
                             boolean isAdded=logConfig.addNewLog(newFileName);
-                            if(isAdded==true){
+                            if(isAdded){
                                 LOG.info("the new file {} add to collect ", newFileName);
                                 return;
                             }
