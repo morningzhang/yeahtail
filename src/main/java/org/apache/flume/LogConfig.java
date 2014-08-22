@@ -11,7 +11,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.flume.channel.ChannelProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,8 +21,6 @@ public class LogConfig {
     private String logFileName;
     //传入的缓存大小
     private int bufferSize;
-    //channel
-    ChannelProcessor channelProcessor;
 
     //----------------------------
     private Path parentPath;
@@ -37,9 +34,8 @@ public class LogConfig {
         setLogFileName(logFileName);
     }
 
-    public boolean addNewLog(String fileName) {
+    public boolean addNewLog(File newLogFile) {
         String todayLogPattern = getDateLogPattern(this.logPattern, this.dateFormat, new Date());
-        File newLogFile = new File(fileName);
         if (newLogFile.getName().matches(todayLogPattern)) {
             addNewCursor(newLogFile);
             return true;
@@ -55,14 +51,6 @@ public class LogConfig {
             return false;
         }
         return cursors.remove(cursor);
-    }
-
-    public void setChannelProcessor(ChannelProcessor channelProcessor) {
-        this.channelProcessor = channelProcessor;
-    }
-
-    public ChannelProcessor getChannelProcessor() {
-        return channelProcessor;
     }
 
     public List<Cursor> getCursors(){
@@ -126,7 +114,7 @@ public class LogConfig {
 
     /**
      *列出所有的符合正则的文件。初始化的时候用的。
-     * @return
+     *
      */
     private File[] getLogFilesInParent(final String logPattern) {
         return this.getParentPath().toFile().listFiles(new FileFilter() {

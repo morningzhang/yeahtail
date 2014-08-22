@@ -26,6 +26,7 @@ public class Cursor implements Closeable{
     public Cursor(File logFile,int bufferSize)  throws IOException{
         this.logFile=logFile;
         buffer=ByteBuffer.allocateDirect(bufferSize);
+        init(this.logFile);
     }
 
 
@@ -72,13 +73,15 @@ public class Cursor implements Closeable{
         if(len==-1){
             //如果读到了文件的末尾，重新获取channel
             init(logFile);
-            LOG.info("transfer size {} for the logfile {} and transfer velocity is greater than log produced.",0,logFile.getName());
+            //LOG.info("transfer size {} for the logfile {} and transfer velocity is greater than log produced.",0,logFile.getName());
             return len;
         }
         //切割最后一行
         int compactSize=compactBuffer(buffer);
         //回退到一定的position
-        channel.position(channel.position()-compactSize);
+        if(compactSize>0){
+            channel.position(channel.position()-compactSize);
+        }
         //读取到数组
         byte[] data=new byte[buffer.limit()];
         buffer.get(data);
@@ -100,7 +103,6 @@ public class Cursor implements Closeable{
      * @return int
      */
     public int compactBuffer(ByteBuffer buffer){
-
         int currPosition=buffer.position();
         for(int i=currPosition-1;i>=0;i--){
             buffer.position(i);
