@@ -180,7 +180,7 @@ public class YeahTail extends AbstractSource
                     WatchEvent<Path> e = (WatchEvent<Path>) event;
 
                     String newFileName = e.context().toFile().getPath();
-                    //elastModifiedntry created and would not be a offset file
+                    //entry created and would not be a offset file
                     if (kind == ENTRY_CREATE && !newFileName.endsWith(".offset")) {
                         LOG.info("the new file {} is created. ", newFileName);
 
