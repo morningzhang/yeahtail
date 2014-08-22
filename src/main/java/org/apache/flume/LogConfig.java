@@ -57,19 +57,6 @@ public class LogConfig {
         return cursors.remove(cursor);
     }
 
-    public boolean checkIsTodayLogFile(File needCheckFile){
-        String todayLogPattern= getDateLogPattern(this.logPattern, this.dateFormat, new Date());
-        File[] logFiles=getLogFilesInParent(todayLogPattern);
-        if(logFiles!=null){
-            for(File realLogFile:logFiles){
-               if(realLogFile.equals(needCheckFile)){
-                   return true;
-               }
-            }
-        }
-        return false;
-    }
-
     public void setChannelProcessor(ChannelProcessor channelProcessor) {
         this.channelProcessor = channelProcessor;
     }

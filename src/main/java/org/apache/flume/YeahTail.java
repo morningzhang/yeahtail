@@ -15,6 +15,7 @@ import java.nio.file.*;
 
 import static java.nio.file.StandardWatchEventKinds.*;
 
+import java.text.SimpleDateFormat;
 import java.util.Set;
 import java.util.concurrent.*;
 
@@ -97,8 +98,10 @@ public class YeahTail extends AbstractSource
 
                                            File logFile=cursor.getLogFile();
                                            long nowTime=System.currentTimeMillis();
+                                           long lastModified=logFile.lastModified();
+
                                            //check if read the file end and the file not update for 10 minutes and is not today file
-                                            if(readFileLen==-1&&(logFile.lastModified()+600000)<nowTime&&logConfig.checkIsTodayLogFile(logFile)){
+                                            if (readFileLen == -1 && (lastModified + 600000) < nowTime && !isInOneDay(nowTime, lastModified)) {
                                                 logConfig.removeOldLog(cursor);
                                             }
 
@@ -153,6 +156,12 @@ public class YeahTail extends AbstractSource
 
         super.stop();
 
+    }
+
+
+    private boolean isInOneDay(long nowTime, long lastModified){
+        SimpleDateFormat sdf=new SimpleDateFormat("yyyyMMdd");
+        return sdf.format(new Date(nowTime)).equals(sdf.format(new Date(lastModified)));
     }
 
     private void handleLogFileCreate() {
