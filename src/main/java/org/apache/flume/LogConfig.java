@@ -82,6 +82,8 @@ public class LogConfig {
                 addNewCursor(realLogFile);
                 LOG.info("Add File {} to cursors. ",realLogFile.getAbsolutePath());
             }
+        }else {
+            LOG.info("There is no file found in the path with the pattern {}. ",todayLogPattern);
         }
 
     }

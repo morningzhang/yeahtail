@@ -1,4 +1,7 @@
 .idea
+.setting
+.classpath
+.project
 target
 *DS_Store*
 yeahtail.iml

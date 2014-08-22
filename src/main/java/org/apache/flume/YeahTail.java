@@ -108,11 +108,12 @@ public class YeahTail extends AbstractSource
                                         //check if read the file end and the file not update for 10 minutes and is not today file
                                         if (readFileLen == -1 && (lastModified + 600000) < nowTime && !isInOneDay(nowTime, lastModified)) {
                                             logConfig.removeOldLog(cursor);
+                                            LOG.warn("The file {} is old, remove from cursors.", cursor.getLogFile());
                                         }
                                     } catch (IOException e) {
                                         if (!cursor.getLogFile().exists()) {
-                                            LOG.warn("the file {} is not exist, remove from cursors.", cursor.getLogFile());
                                             logConfig.removeOldLog(cursor);
+                                            LOG.warn("The file {} is not exist, remove from cursors.", cursor.getLogFile());
                                             return;
                                         }
                                     }
@@ -181,12 +182,13 @@ public class YeahTail extends AbstractSource
                     String newFileName = e.context().toFile().getName();
                     //entry created and would not be a offset file
                     if (kind == ENTRY_CREATE && !newFileName.endsWith(".offset")) {
-                        LOG.info("the new file {} is created. ", newFileName);
+                        LOG.info("The watcher find a new file {} is created. ", newFileName);
 
                         File newFile = new File(logConfig.getParentPath().toString() + "/" + newFileName);
                         if (logConfig.addNewLog(newFile)) {
-                            LOG.info("the new file {} add to collect ", newFile.getAbsolutePath());
-                            return;
+                            LOG.info("The new file {} add to for collecting.", newFile.getAbsolutePath());
+                        }else {
+                            LOG.info("It is not the file we needed. ");
                         }
 
 
