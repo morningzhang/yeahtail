@@ -18,7 +18,6 @@ import static java.nio.file.StandardWatchEventKinds.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class YeahTail extends AbstractSource
         implements EventDrivenSource, Configurable {
@@ -60,7 +59,7 @@ public class YeahTail extends AbstractSource
         //fetch interval
         fetchInterval = context.getInteger("fetchInterval", 100);
         //the size of work queue
-        workQueueSize = context.getInteger("workQueueSize", 1000);
+        workQueueSize = context.getInteger("workQueueSize", 100);
 
         Preconditions.checkArgument(logFileName != null, "Null File is an illegal argument");
         Preconditions.checkArgument(bufferSize > 0L, "bufferSize <=0 is an illegal argument");
@@ -94,6 +93,10 @@ public class YeahTail extends AbstractSource
                 while (!shutdown) {
                     //submit collect log task to threadpool
                     try {
+                        if (workQueue.size()>=workQueueSize*0.9){
+                            Thread.sleep(fetchInterval);
+                            continue;
+                        }
                         for (final Cursor cursor : logConfig.getCursors()) {
                             runThreadPool.execute(new Runnable() {
                                 @Override
@@ -130,9 +133,7 @@ public class YeahTail extends AbstractSource
 
                         }
 
-                        if (workQueue.size()>=workQueueSize*0.8){
-                            Thread.sleep(fetchInterval);
-                        }
+
 
                     } catch (Exception e) {
                         LOG.error("", e);
