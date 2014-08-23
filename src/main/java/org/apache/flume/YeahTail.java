@@ -18,6 +18,7 @@ import static java.nio.file.StandardWatchEventKinds.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class YeahTail extends AbstractSource
         implements EventDrivenSource, Configurable {
@@ -29,6 +30,8 @@ public class YeahTail extends AbstractSource
     private ExecutorService daemonThreadPool=Executors.newSingleThreadExecutor();
     private ExecutorService runThreadPool;
     private int nThreads = 0;
+    private LinkedBlockingQueue<Runnable> workQueue;
+    private int workQueueSize=1000;
     private int fetchInterval=0;
 
     private WatchService watcher;
@@ -53,23 +56,24 @@ public class YeahTail extends AbstractSource
         //buffer size
         int bufferSize = context.getInteger("bufferSize", 409600);
         //pool size
-        int poolSize = context.getInteger("poolSize", 1);
+        nThreads= context.getInteger("poolSize", 1);
         //fetch interval
-        int fetchInterval = context.getInteger("fetchInterval", 100);
+        fetchInterval = context.getInteger("fetchInterval", 100);
+        //the size of work queue
+        workQueueSize = context.getInteger("workQueueSize", 1000);
 
         Preconditions.checkArgument(logFileName != null, "Null File is an illegal argument");
         Preconditions.checkArgument(bufferSize > 0L, "bufferSize <=0 is an illegal argument");
-        Preconditions.checkArgument(poolSize > 0L, "poolSize <=0 is an illegal argument");
+        Preconditions.checkArgument(nThreads > 0L, "poolSize <=0 is an illegal argument");
         Preconditions.checkArgument(fetchInterval > 0L, "fetchInterval <=0 is an illegal argument");
-
+        Preconditions.checkArgument(workQueueSize > 0L, "workQueueSize <=0 is an illegal argument");
         try {
             logConfig = new LogConfig(logFileName, bufferSize);
             logConfig.getParentPath().register(watcher, ENTRY_CREATE);
 
             //thread pools
-            nThreads = poolSize;
-            runThreadPool = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>(16));
-            this.fetchInterval=fetchInterval;
+            workQueue=new  LinkedBlockingQueue<Runnable>(workQueueSize);
+            runThreadPool = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, workQueue);
         } catch (Throwable t) {
             String ss = Throwables.getStackTraceAsString(t);
             System.err.println(ss);
@@ -125,7 +129,11 @@ public class YeahTail extends AbstractSource
                             });
 
                         }
-                        Thread.sleep(fetchInterval);
+
+                        if (workQueue.size()>=workQueueSize*0.8){
+                            Thread.sleep(fetchInterval);
+                        }
+
                     } catch (Exception e) {
                         LOG.error("", e);
                     }
