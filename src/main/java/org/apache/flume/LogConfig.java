@@ -65,6 +65,9 @@ public class LogConfig {
         return parentPath;
     }
 
+    public String getDateFormat() {
+        return dateFormat;
+    }
 
     private void setLogFileName(String logFileName) {
         this.logFileName = logFileName;

@@ -28,9 +28,9 @@ public class YeahTail extends AbstractSource
 
     private ExecutorService daemonThreadPool=Executors.newSingleThreadExecutor();
     private ExecutorService runThreadPool;
+
     private int nThreads = 0;
     private LinkedBlockingQueue<Runnable> workQueue;
-    private int workQueueSize=1000;
     private int fetchInterval=0;
 
     private WatchService watcher;
@@ -58,20 +58,18 @@ public class YeahTail extends AbstractSource
         nThreads= context.getInteger("poolSize", 1);
         //fetch interval
         fetchInterval = context.getInteger("fetchInterval", 100);
-        //the size of work queue
-        workQueueSize = context.getInteger("workQueueSize", 100);
 
         Preconditions.checkArgument(logFileName != null, "Null File is an illegal argument");
         Preconditions.checkArgument(bufferSize > 0L, "bufferSize <=0 is an illegal argument");
         Preconditions.checkArgument(nThreads > 0L, "poolSize <=0 is an illegal argument");
         Preconditions.checkArgument(fetchInterval > 0L, "fetchInterval <=0 is an illegal argument");
-        Preconditions.checkArgument(workQueueSize > 0L, "workQueueSize <=0 is an illegal argument");
+
         try {
             logConfig = new LogConfig(logFileName, bufferSize);
             logConfig.getParentPath().register(watcher, ENTRY_CREATE);
 
             //thread pools
-            workQueue=new  LinkedBlockingQueue<Runnable>(workQueueSize);
+            workQueue=new LinkedBlockingQueue<Runnable>(nThreads);
             runThreadPool = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, workQueue);
         } catch (Throwable t) {
             String ss = Throwables.getStackTraceAsString(t);
@@ -91,13 +89,16 @@ public class YeahTail extends AbstractSource
             @Override
             public void run() {
                 while (!shutdown) {
-                    //submit collect log task to threadpool
                     try {
-                        if (workQueue.size()>=workQueueSize*0.9){
-                            Thread.sleep(fetchInterval);
-                            continue;
-                        }
+
+                        //submit collect log task to thread pool
                         for (final Cursor cursor : logConfig.getCursors()) {
+                            //check workQueueSize is greater than threads poolSize
+                            while(workQueue.size()>=nThreads){
+                                //check the file create
+                                handleLogFileCreate(Long.valueOf(fetchInterval));
+                            }
+                            //submit
                             runThreadPool.execute(new Runnable() {
                                 @Override
                                 public void run() {
@@ -112,8 +113,8 @@ public class YeahTail extends AbstractSource
                                         long nowTime = System.currentTimeMillis();
                                         long lastModified = logFile.lastModified();
 
-                                        //check if read the file end and the file not update for 10 minutes and is not today file
-                                        if (readFileLen == -1 && (lastModified + 600000) < nowTime && !isInOneDay(nowTime, lastModified)) {
+                                        //check if read the file end and the file not update for 5 minutes and is not today file
+                                        if (readFileLen == -1 && (lastModified + 300000) < nowTime && !isInOneDay(nowTime, lastModified, logConfig.getDateFormat())) {
                                             logConfig.removeOldLog(cursor);
                                             LOG.warn("The file {} is old, remove from cursors.", cursor.getLogFile());
                                         }
@@ -125,15 +126,12 @@ public class YeahTail extends AbstractSource
                                         }
                                     }
 
-                                    //check the file create
-                                    handleLogFileCreate();
-
                                 }
                             });
 
                         }
-
-
+                        //check the file create
+                        handleLogFileCreate(Long.valueOf(fetchInterval));
 
                     } catch (Exception e) {
                         LOG.error("", e);
@@ -169,14 +167,14 @@ public class YeahTail extends AbstractSource
     }
 
 
-    private boolean isInOneDay(long nowTime, long lastModified){
-        SimpleDateFormat sdf=new SimpleDateFormat("yyyyMMdd");
+    private boolean isInOneDay(long nowTime, long lastModified, String fmt){
+        SimpleDateFormat sdf=new SimpleDateFormat(fmt);
         return sdf.format(new Date(nowTime)).equals(sdf.format(new Date(lastModified)));
     }
 
-    private void handleLogFileCreate() {
+    private void handleLogFileCreate(long waitTime) {
             try {
-                WatchKey key = watcher.poll();
+                WatchKey key = watcher.poll(waitTime,TimeUnit.MILLISECONDS);
                 if(key==null){
                     return;
                 }
