@@ -52,7 +52,7 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
         //buffer size
         int bufferSize = context.getInteger("bufferSize", 409600);
         //fetch interval
-        fetchInterval = context.getInteger("fetchInterval", 1000);
+        fetchInterval = context.getInteger("fetchInterval", 100);
 
         Preconditions.checkArgument(logFileName != null, "Null File is an illegal argument");
         Preconditions.checkArgument(bufferSize > 0L, "bufferSize <=0 is an illegal argument");
@@ -145,7 +145,6 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
     private void handleLogFileCreate(long waitTime) {
             try {
-
                 WatchKey key = watcher.poll(waitTime,TimeUnit.MILLISECONDS);
                 if(key==null){
                     return;
