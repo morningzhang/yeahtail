@@ -17,6 +17,7 @@ import static java.nio.file.StandardWatchEventKinds.*;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+
 import java.util.concurrent.*;
 
 public class YeahTail extends AbstractSource implements EventDrivenSource, Configurable {
@@ -25,8 +26,8 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
     private LogConfig logConfig ;
 
-    private ExecutorService daemonThreadPool=Executors.newSingleThreadExecutor();
-    //private ExecutorService runThreadPool=Executors.newSingleThreadExecutor();
+    private ExecutorService runThreadPool=Executors.newSingleThreadExecutor();
+
     private int fetchInterval=0;
 
     private WatchService watcher;
@@ -35,7 +36,7 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
 
     public YeahTail() {
-        LOG.info("YeahTail starting......");
+        LOG.info("YeahTail Starting......");
 
         try {
             watcher = FileSystems.getDefault().newWatchService();
@@ -70,12 +71,10 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
     }
 
     public void start() {
-        super.start();
-
         final ChannelProcessor cp = getChannelProcessor();
         final LogConfig logConfig=this.logConfig;
         //start thread
-        daemonThreadPool.execute(new Runnable() {
+        runThreadPool.execute(new Runnable() {
             @Override
             public void run() {
                 while (!shutdown) {
@@ -116,7 +115,7 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
             }
         });
 
-
+        super.start();
 
     }
 
@@ -125,8 +124,8 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
         try {
             shutdown = true;
             //shutdown the thread
-            if (!daemonThreadPool.isShutdown()) {
-                daemonThreadPool.shutdown();
+            if (!runThreadPool.isShutdown()) {
+                runThreadPool.shutdown();
             }
             //stop watcher
             watcher.close();
@@ -148,7 +147,6 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
             try {
 
                 WatchKey key = watcher.poll(waitTime,TimeUnit.MILLISECONDS);
-                //LOG.info("check file key={} ", key);
                 if(key==null){
                     return;
                 }
@@ -175,6 +173,7 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
                     }
                 }
+                key.reset();
             } catch (Exception e) {
                 LOG.error("", e);
             }
