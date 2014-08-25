@@ -27,10 +27,7 @@ public class YeahTail extends AbstractSource
     private LogConfig logConfig ;
 
     private ExecutorService daemonThreadPool=Executors.newSingleThreadExecutor();
-    private ExecutorService runThreadPool;
-
-    private int nThreads = 0;
-    private LinkedBlockingQueue<Runnable> workQueue;
+    private ExecutorService runThreadPool=Executors.newSingleThreadExecutor();
     private int fetchInterval=0;
 
     private WatchService watcher;
@@ -54,23 +51,17 @@ public class YeahTail extends AbstractSource
         String logFileName = context.getString("logFileName");
         //buffer size
         int bufferSize = context.getInteger("bufferSize", 409600);
-        //pool size
-        nThreads= context.getInteger("poolSize", 1);
         //fetch interval
-        fetchInterval = context.getInteger("fetchInterval", 100);
+        fetchInterval = context.getInteger("fetchInterval", 1000);
 
         Preconditions.checkArgument(logFileName != null, "Null File is an illegal argument");
         Preconditions.checkArgument(bufferSize > 0L, "bufferSize <=0 is an illegal argument");
-        Preconditions.checkArgument(nThreads > 0L, "poolSize <=0 is an illegal argument");
         Preconditions.checkArgument(fetchInterval > 0L, "fetchInterval <=0 is an illegal argument");
 
         try {
             logConfig = new LogConfig(logFileName, bufferSize);
             logConfig.getParentPath().register(watcher, ENTRY_CREATE);
 
-            //thread pools
-            workQueue=new LinkedBlockingQueue<Runnable>(nThreads);
-            runThreadPool = new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS, workQueue);
         } catch (Throwable t) {
             String ss = Throwables.getStackTraceAsString(t);
             System.err.println(ss);
@@ -90,48 +81,34 @@ public class YeahTail extends AbstractSource
             public void run() {
                 while (!shutdown) {
                     try {
-
                         //submit collect log task to thread pool
                         for (final Cursor cursor : logConfig.getCursors()) {
-                            //check workQueueSize is greater than threads poolSize
-                            while(workQueue.size()>=nThreads){
-                                //check the file create
-                                handleLogFileCreate(Long.valueOf(fetchInterval));
-                            }
-                            //submit
-                            runThreadPool.execute(new Runnable() {
-                                @Override
-                                public void run() {
-                                    try {
-                                        int readFileLen = cursor.process(new Cursor.ProcessCallBack() {
-                                            @Override
-                                            public void doCallBack(byte[] data) {
-                                                cp.processEvent(EventBuilder.withBody(data));
-                                            }
-                                        });
-                                        File logFile = cursor.getLogFile();
-                                        long nowTime = System.currentTimeMillis();
-                                        long lastModified = logFile.lastModified();
-
-                                        //check if read the file end and the file not update for 5 minutes and is not today file
-                                        if (readFileLen == -1 && (lastModified + 300000) < nowTime && !isInOneDay(nowTime, lastModified, logConfig.getDateFormat())) {
-                                            logConfig.removeOldLog(cursor);
-                                            LOG.warn("The file {} is old, remove from cursors.", cursor.getLogFile());
-                                        }
-                                    } catch (IOException e) {
-                                        if (!cursor.getLogFile().exists()) {
-                                            logConfig.removeOldLog(cursor);
-                                            LOG.warn("The file {} is not exist, remove from cursors.", cursor.getLogFile());
-                                            return;
-                                        }
+                            try {
+                                int readFileLen = cursor.process(new Cursor.ProcessCallBack() {
+                                    @Override
+                                    public void doCallBack(byte[] data) {
+                                        cp.processEvent(EventBuilder.withBody(data));
                                     }
+                                });
+                                File logFile = cursor.getLogFile();
+                                long nowTime = System.currentTimeMillis();
+                                long lastModified = logFile.lastModified();
 
+                                //check if read the file end and the file not update for 5 minutes and is not today file
+                                if (readFileLen == -1 && (lastModified + 300000) < nowTime && !isInOneDay(nowTime, lastModified, logConfig.getDateFormat())) {
+                                    logConfig.removeOldLog(cursor);
+                                    LOG.warn("The file {} is old, remove from cursors.", cursor.getLogFile());
                                 }
-                            });
 
+                            } catch (IOException e) {
+                                if (!cursor.getLogFile().exists()) {
+                                    logConfig.removeOldLog(cursor);
+                                    LOG.warn("The file {} is not exist, remove from cursors.", cursor.getLogFile());
+                                }
+                            }
                         }
-                        //check the file create
-                        handleLogFileCreate(Long.valueOf(fetchInterval));
+                        //check file create
+                        handleLogFileCreate(fetchInterval);
 
                     } catch (Exception e) {
                         LOG.error("", e);
@@ -148,10 +125,6 @@ public class YeahTail extends AbstractSource
 
         try {
             shutdown = true;
-            //shutdown the thread
-            if (!runThreadPool.isShutdown()) {
-                runThreadPool.shutdown();
-            }
             //shutdown the thread
             if (!daemonThreadPool.isShutdown()) {
                 daemonThreadPool.shutdown();
@@ -174,7 +147,9 @@ public class YeahTail extends AbstractSource
 
     private void handleLogFileCreate(long waitTime) {
             try {
+
                 WatchKey key = watcher.poll(waitTime,TimeUnit.MILLISECONDS);
+                //LOG.info("check file key={} ", key);
                 if(key==null){
                     return;
                 }
