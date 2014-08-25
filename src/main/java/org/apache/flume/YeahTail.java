@@ -19,15 +19,14 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.*;
 
-public class YeahTail extends AbstractSource
-        implements EventDrivenSource, Configurable {
+public class YeahTail extends AbstractSource implements EventDrivenSource, Configurable {
 
     private static final Logger LOG = LoggerFactory.getLogger(YeahTail.class);
 
     private LogConfig logConfig ;
 
     private ExecutorService daemonThreadPool=Executors.newSingleThreadExecutor();
-    private ExecutorService runThreadPool=Executors.newSingleThreadExecutor();
+    //private ExecutorService runThreadPool=Executors.newSingleThreadExecutor();
     private int fetchInterval=0;
 
     private WatchService watcher;
