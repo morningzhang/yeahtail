@@ -25,7 +25,7 @@ public class Cursor implements Closeable{
 
     public Cursor(File logFile,int bufferSize)  throws IOException{
         this.logFile=logFile;
-        buffer=ByteBuffer.allocateDirect(bufferSize);
+        buffer=ByteBuffer.allocateDirect(10);
         init(this.logFile);
     }
 
@@ -78,23 +78,43 @@ public class Cursor implements Closeable{
         }
         //切割最后一行
         int compactSize=compactBuffer(buffer);
-        //回退到一定的position
         if(compactSize>0){
+            //回退到一定的position
             channel.position(channel.position()-compactSize);
         }
         //读取到数组
-        byte[] data=new byte[buffer.limit()];
+        byte[] data = new byte[buffer.limit()];
         buffer.get(data);
+        //trim
+        data=trim(data);
         //do process
         processCallBack.doCallBack(data);
         //更新offset
-        logOffset.increaseBy(data.length);
+        logOffset.increaseBy(buffer.limit());
         //清除
         buffer.clear();
 
         LOG.info("transfer {} for the logfile {} ",data.length,logFile.getName());
 
         return len;
+    }
+
+    public static byte[] trim(byte[] data) {
+        ByteBuffer dataBuffer = ByteBuffer.wrap(data);
+        byte firstByte = dataBuffer.get(0);
+        if (firstByte == 10) {
+            data = new byte[dataBuffer.limit() - 1];
+            dataBuffer.position(1);
+            dataBuffer.get(data);
+            dataBuffer = ByteBuffer.wrap(data);
+        }
+        byte theLastByte = dataBuffer.get(dataBuffer.limit() - 1);
+        if (theLastByte == 10) {
+            data = new byte[dataBuffer.limit() - 1];
+            dataBuffer.position(0);
+            dataBuffer.get(data);
+        }
+        return data;
     }
 
     /**
