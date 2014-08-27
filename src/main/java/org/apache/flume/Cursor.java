@@ -25,7 +25,7 @@ public class Cursor implements Closeable{
 
     public Cursor(File logFile,int bufferSize)  throws IOException{
         this.logFile=logFile;
-        buffer=ByteBuffer.allocateDirect(10);
+        buffer=ByteBuffer.allocateDirect(bufferSize);
         init(this.logFile);
     }
 
