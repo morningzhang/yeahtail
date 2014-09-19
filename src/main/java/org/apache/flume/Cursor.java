@@ -66,6 +66,9 @@ public class Cursor implements Closeable{
     public File getLogFile() {
         return logFile;
     }
+    public Offset getOffset() {
+        return logOffset;
+    }
 
     public synchronized int process(ProcessCallBack processCallBack) throws IOException{
         //读取到buffer

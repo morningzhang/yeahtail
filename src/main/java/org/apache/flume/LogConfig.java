@@ -43,14 +43,26 @@ public class LogConfig {
         return false;
     }
 
-    public boolean removeOldLog(Cursor cursor){
+    public boolean removeOldLog(Cursor cursor,boolean isLogFileExisted){
         try {
+            //close the cursor
             cursor.close();
+            //rename offsetFile
+            File offsetFile=cursor.getOffset().getOffsetFile();
+            if(!isLogFileExisted&&offsetFile.exists()){
+                long now=System.currentTimeMillis();
+                File newOffsetFile=new File(offsetFile.getAbsolutePath()+"."+now);
+                offsetFile.renameTo(newOffsetFile);
+                LOG.info("Rename the offset File {}. ",newOffsetFile.getAbsolutePath());
+            }
+            //remove from List
+            cursors.remove(cursor);
+
         }catch (IOException e){
             LOG.error("", e);
             return false;
         }
-        return cursors.remove(cursor);
+        return true;
     }
 
     public List<Cursor> getCursors(){

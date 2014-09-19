@@ -94,13 +94,14 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
                                 //check if read the file end and the file not update for 5 minutes and is not today file
                                 if (readFileLen == -1 && (lastModified + 300000) < nowTime && !isInOneDay(nowTime, lastModified, logConfig.getDateFormat())) {
-                                    logConfig.removeOldLog(cursor);
+                                    logConfig.removeOldLog(cursor,true);
                                     LOG.warn("The file {} is old, remove from cursors.", cursor.getLogFile());
                                 }
 
                             } catch (IOException e) {
+                                //进入这个流程的很可能是.当天的日志不带日期扩展的
                                 if (!cursor.getLogFile().exists()) {
-                                    logConfig.removeOldLog(cursor);
+                                    logConfig.removeOldLog(cursor,false);
                                     LOG.warn("The file {} is not exist, remove from cursors.", cursor.getLogFile());
                                 }
                             }
