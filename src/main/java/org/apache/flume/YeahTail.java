@@ -80,7 +80,7 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                 while (!shutdown) {
                     try {
                         //submit collect log task to thread pool
-                        for (final Cursor cursor : logConfig.getCursors()) {
+                        for (Cursor cursor : logConfig.getCursors()) {
                             try {
                                 int readFileLen = cursor.process(new Cursor.ProcessCallBack() {
                                     @Override
@@ -94,15 +94,16 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
                                 //check if read the file end and the file not update for 5 minutes and is not today file
                                 if (readFileLen == -1 && (lastModified + 300000) < nowTime && !isInOneDay(nowTime, lastModified, logConfig.getDateFormat())) {
-                                    logConfig.removeOldLog(cursor,true);
+                                    logConfig.removeOldLog(cursor);
                                     LOG.warn("The file {} is old, remove from cursors.", cursor.getLogFile());
                                 }
 
                             } catch (IOException e) {
-                                //进入这个流程的很可能是.当天的日志不带日期扩展的
-                                if (!cursor.getLogFile().exists()) {
-                                    logConfig.removeOldLog(cursor,false);
+                                if(!cursor.getLogFile().exists()){
+                                    logConfig.removeOldLog(cursor);
                                     LOG.warn("The file {} is not exist, remove from cursors.", cursor.getLogFile());
+                                }else{
+                                    LOG.error("",e);
                                 }
                             }
                         }
@@ -158,20 +159,45 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                     @SuppressWarnings("unchecked")
                     WatchEvent<Path> e = (WatchEvent<Path>) event;
 
-                    String newFileName = e.context().toFile().getName();
+                    String modifiedFileName = e.context().toFile().getName();
                     //entry created and would not be a offset file
-                    if (kind == ENTRY_CREATE && !newFileName.endsWith(".offset")) {
-                        LOG.info("The watcher find a new file {} is created. ", newFileName);
+                    if(!modifiedFileName.endsWith(".offset")){
+                        if (kind == ENTRY_CREATE) {
+                            File newFile = new File(logConfig.getParentPath().toString() + "/" + modifiedFileName);
 
-                        File newFile = new File(logConfig.getParentPath().toString() + "/" + newFileName);
-                        if (logConfig.addNewLog(newFile)) {
-                            LOG.info("The new file {} add to for collecting.", newFile.getAbsolutePath());
-                        }else {
-                            LOG.info("It is not the file we needed. ");
+                            Date today=new Date();
+                            String todayFmtStr=new SimpleDateFormat(logConfig.getDateFormat()).format(today);
+
+
+                            if (logConfig.isMatchLog(newFile,today)) {
+                                if(!newFile.getName().contains(todayFmtStr)){
+                                    File linkFile = new File(logConfig.getParentPath().toFile().getAbsolutePath()+"/"+logConfig.getDateLogSymbolicLink(newFile.getName(),new Date()));
+
+                                    try{
+                                        Path link= Files.createSymbolicLink(linkFile.toPath(),newFile.toPath());
+                                        LOG.info("The new link file {} create.",  link.toFile().getName());
+                                    }catch (IOException e1){
+                                        LOG.error(e1.getMessage());
+                                        logConfig.addNewLog(linkFile);
+                                        LOG.info("The new file {} add to for collecting.", linkFile.getAbsolutePath());
+                                    }
+                                }else{
+                                    File offsetFile=new File(Cursor.getLogOffsetFileName(newFile));
+                                    if(offsetFile.exists()){
+                                        offsetFile.renameTo(new File(offsetFile.getAbsolutePath()+".del"));
+                                        LOG.info("Find the offset file {} existed,so add .del mark.", offsetFile.getName());
+                                    }
+                                    logConfig.addNewLog(newFile);
+                                    LOG.info("The new file {} add to for collecting.", newFile.getAbsolutePath());
+                                }
+
+
+                            }
+
                         }
 
-
                     }
+
                 }
                 key.reset();
             } catch (Exception e) {

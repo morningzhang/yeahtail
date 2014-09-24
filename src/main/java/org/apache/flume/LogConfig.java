@@ -3,6 +3,7 @@ package org.apache.flume;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.List;
@@ -22,7 +23,6 @@ public class LogConfig {
     //传入的缓存大小
     private int bufferSize;
 
-    //----------------------------
     private Path parentPath;
     private String logPattern;
     private String dateFormat;
@@ -34,32 +34,34 @@ public class LogConfig {
         setLogFileName(logFileName);
     }
 
-    public boolean addNewLog(File newLogFile) {
-        String todayLogPattern = getDateLogPattern(this.logPattern, this.dateFormat, new Date());
+    public boolean isMatchLog(File newLogFile, Date date){
+        String todayLogPattern = getDateLogPattern(this.logPattern, this.dateFormat, date);
         if (newLogFile.getName().matches(todayLogPattern)) {
-            addNewCursor(newLogFile);
             return true;
         }
         return false;
     }
 
-    public boolean removeOldLog(Cursor cursor,boolean isLogFileExisted){
+    public Cursor addNewLog(File realLogFile){
+        try {
+            Cursor cursor=new Cursor(realLogFile,this.bufferSize);
+            cursors.add(cursor);
+            return cursor;
+        }catch (IOException e){
+            LOG.warn(e.getMessage());
+            return null;
+        }
+
+    }
+
+    public boolean removeOldLog(Cursor cursor){
         try {
             //close the cursor
             cursor.close();
-            //rename offsetFile
-            File offsetFile=cursor.getOffset().getOffsetFile();
-            if(!isLogFileExisted&&offsetFile.exists()){
-                long now=System.currentTimeMillis();
-                File newOffsetFile=new File(offsetFile.getAbsolutePath()+"."+now);
-                offsetFile.renameTo(newOffsetFile);
-                LOG.info("Rename the offset File {}. ",newOffsetFile.getAbsolutePath());
-            }
             //remove from List
             cursors.remove(cursor);
-
         }catch (IOException e){
-            LOG.error("", e);
+            LOG.warn(e.getMessage());
             return false;
         }
         return true;
@@ -86,16 +88,40 @@ public class LogConfig {
 
         File logFile= new File(logFileName);
         this.logPattern=logFile.getName();
-        this.parentPath=logFile.getParentFile().toPath();
+        this.parentPath=logFile.getAbsoluteFile().getParentFile().toPath();
 
         this.dateFormat=getDateFormatStr(this.logPattern);
+
         //get today log files
-        String todayLogPattern= getDateLogPattern(this.logPattern, this.dateFormat, new Date());
+        Date today=new Date();
+        String todayLogPattern= getDateLogPattern(this.logPattern, this.dateFormat, today);
         File[] logFiles=getLogFilesInParent(todayLogPattern);
         if(logFiles!=null){
+            String todayFmtStr=new SimpleDateFormat(getDateFormat()).format(today);
             for(File realLogFile:logFiles){
-                addNewCursor(realLogFile);
-                LOG.info("Add File {} to cursors. ",realLogFile.getAbsolutePath());
+                //check with date string
+                if(realLogFile.getName().contains(todayFmtStr)){
+                    addNewLog(realLogFile);
+                    LOG.info("Add File {} to cursors. ",realLogFile.getAbsolutePath());
+                }else {
+                    //if not contain date string ,create link
+                    try{
+                        File linkFile = new File(this.parentPath.toFile().getAbsolutePath()+"/"+getDateLogSymbolicLink(realLogFile.getName(),today));
+                        if(!Files.exists(linkFile.toPath())){
+                            Path link= Files.createSymbolicLink(linkFile.toPath(), realLogFile.toPath());
+                            if(link!=null){
+                                addNewLog(linkFile);
+                                LOG.info("create link and add File {} to cursors. ",linkFile.getAbsolutePath());
+                            }
+
+                        }
+
+                    }catch (IOException e){
+                        LOG.error(e.getMessage());
+                    }
+
+                }
+
             }
         }else {
             LOG.info("There is no file found in the path with the pattern {}. ",todayLogPattern);
@@ -108,14 +134,6 @@ public class LogConfig {
     }
 
 
-    private void addNewCursor(File realLogFile){
-        try {
-            Cursor cursor=new Cursor(realLogFile,this.bufferSize);
-            cursors.add(cursor);
-        }catch (IOException e){
-            e.printStackTrace();
-        }
-    }
 
     private String getDateFormatStr(String logPattern){
         Matcher m = Pattern.compile(".*?\\$\\{(.*?)\\}.*").matcher(logPattern);
@@ -129,11 +147,31 @@ public class LogConfig {
         return logPattern.replaceAll("\\$\\{.*?\\}",new SimpleDateFormat(dateFormat).format(date));
     }
 
+
+    public String getDateLogSymbolicLink(String fileName, Date date){
+        String patternWithDate=getDateLogPattern(this.logPattern,this.dateFormat,date);
+        Matcher m = Pattern.compile("^.*\\((.*?)\\)\\?.*$").matcher(patternWithDate);
+        if(m.matches()) {
+           String lossPart=m.group(1);
+           for(int i=fileName.length();i>0;i--){
+               StringBuilder sb=new StringBuilder(fileName);
+               sb.insert(i,lossPart);
+               String insertedLogName=sb.toString();
+               if(insertedLogName.matches(patternWithDate)){
+                   return insertedLogName;
+               }
+           }
+
+
+        }
+       return null;
+    }
     /**
      *列出所有的符合正则的文件。初始化的时候用的。
      *
      */
     private File[] getLogFilesInParent(final String logPattern) {
+
         return this.getParentPath().toFile().listFiles(new FileFilter() {
             public boolean accept(File file) {
                 if (file.getName().matches(logPattern)) {
@@ -154,6 +192,5 @@ public class LogConfig {
         }
         return true;
     }
-
 
 }

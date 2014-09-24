@@ -14,7 +14,7 @@ public class CursorTest {
 
     @org.junit.Before
     public void setUp() throws Exception {
-        c =new Cursor(new File("logs/worker-1-20140827.log"),4096000);
+        c =new Cursor(new File("logs/job-1.log"),4096000);
     }
 
     @org.junit.Test
@@ -50,7 +50,7 @@ public class CursorTest {
 
     @Test
     public void testTrim(){
-        ByteBuffer b=ByteBuffer.allocate(2).put((byte)10).put((byte) 10);
+        ByteBuffer b=ByteBuffer.allocate(1).put((byte)10);
         byte[] trimedBytes= Cursor.trim(b.array());
         System.out.println(new String(trimedBytes));
     }

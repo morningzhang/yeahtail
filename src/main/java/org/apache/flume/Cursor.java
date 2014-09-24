@@ -89,7 +89,7 @@ public class Cursor implements Closeable{
         byte[] data = new byte[buffer.limit()];
         buffer.get(data);
         //trim
-        data=trim(data);
+        data = trim(data);
         //do process
         processCallBack.doCallBack(data);
         //更新offset
@@ -106,7 +106,11 @@ public class Cursor implements Closeable{
         ByteBuffer dataBuffer = ByteBuffer.wrap(data);
         byte firstByte = dataBuffer.get(0);
         if (firstByte == 10) {
-            data = new byte[dataBuffer.limit() - 1];
+            int dateLen=dataBuffer.limit() - 1;
+            if(dateLen==0){
+               return new byte[0];
+            }
+            data = new byte[dateLen];
             dataBuffer.position(1);
             dataBuffer.get(data);
             dataBuffer = ByteBuffer.wrap(data);
