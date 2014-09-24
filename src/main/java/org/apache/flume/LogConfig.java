@@ -116,8 +116,8 @@ public class LogConfig {
 
                         }
 
-                    }catch (IOException e){
-                        LOG.error(e.getMessage());
+                    }catch (Exception e){
+                        LOG.error("",e);
                     }
 
                 }
@@ -152,7 +152,7 @@ public class LogConfig {
         String patternWithDate=getDateLogPattern(this.logPattern,this.dateFormat,date);
         Matcher m = Pattern.compile("^.*\\((.*?)\\)\\?.*$").matcher(patternWithDate);
         if(m.matches()) {
-           String lossPart=m.group(1);
+           String lossPart=m.group(1).replaceAll("\\\\","");
            for(int i=fileName.length();i>0;i--){
                StringBuilder sb=new StringBuilder(fileName);
                sb.insert(i,lossPart);
