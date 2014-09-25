@@ -99,11 +99,22 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                                 }
 
                             } catch (IOException e) {
-                                if(!cursor.getLogFile().exists()){
-                                    logConfig.removeOldLog(cursor);
-                                    LOG.warn("The file {} is not exist, remove from cursors.", cursor.getLogFile());
-                                }else{
-                                    LOG.error("",e);
+                                //if log is beging rename
+                                if (!cursor.getLogFile().exists()) {
+                                    //await 100ms
+                                    try {
+                                        Thread.sleep(100);
+                                    } catch (InterruptedException e1) {
+
+                                    }
+                                    //check again
+                                    if (!cursor.getLogFile().exists()) {
+                                        logConfig.removeOldLog(cursor);
+                                        LOG.warn("The file {} is not exist, remove from cursors.", cursor.getLogFile());
+                                    }
+
+                                } else {
+                                    LOG.error("", e);
                                 }
                             }
                         }
