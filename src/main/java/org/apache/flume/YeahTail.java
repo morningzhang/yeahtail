@@ -4,21 +4,22 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import org.apache.flume.channel.ChannelProcessor;
 import org.apache.flume.conf.Configurable;
-import org.apache.flume.source.AbstractSource;
 import org.apache.flume.event.EventBuilder;
+import org.apache.flume.source.AbstractSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.*;
-
-import static java.nio.file.StandardWatchEventKinds.*;
-
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-import java.util.concurrent.*;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
+import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
 
 public class YeahTail extends AbstractSource implements EventDrivenSource, Configurable {
 
