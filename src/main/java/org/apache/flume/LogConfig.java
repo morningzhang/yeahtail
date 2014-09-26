@@ -84,6 +84,11 @@ public class LogConfig {
         return dateFormat;
     }
 
+    public int getBufferSize(){
+        return bufferSize;
+    }
+
+
     private void setLogFileName(String logFileName) {
         this.logFileName = logFileName;
 

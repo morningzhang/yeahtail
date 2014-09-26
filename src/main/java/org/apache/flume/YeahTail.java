@@ -85,13 +85,15 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                         //submit collect log task to thread pool
                         for (Cursor cursor : logConfig.getCursors()) {
                             try {
-                                int readFileLen = cursor.process(new Cursor.ProcessCallBack() {
-                                    @Override
-                                    public void doCallBack(byte[] data) {
-                                        cp.processEvent(EventBuilder.withBody(data));
-                                    }
-                                });
-
+                                int readFileLen=0;
+                                for(int i=0;readFileLen>0&&(readFileLen>=logConfig.getBufferSize()-512)&&i<3;i++){
+                                    readFileLen = cursor.process(new Cursor.ProcessCallBack() {
+                                        @Override
+                                        public void doCallBack(byte[] data) {
+                                            cp.processEvent(EventBuilder.withBody(data));
+                                        }
+                                    });
+                                }
                                 File logFile = cursor.getLogFile();
                                 long nowTime = System.currentTimeMillis();
                                 long lastModified = logFile.lastModified();
