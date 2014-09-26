@@ -86,7 +86,7 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                         for (Cursor cursor : logConfig.getCursors()) {
                             try {
                                 int readFileLen=0;
-                                for(int i=0;readFileLen>0&&(readFileLen>=logConfig.getBufferSize()-512)&&i<3;i++){
+                                for(int i=0;readFileLen==logConfig.getBufferSize()&&i<3;i++){
                                     readFileLen = cursor.process(new Cursor.ProcessCallBack() {
                                         @Override
                                         public void doCallBack(byte[] data) {
