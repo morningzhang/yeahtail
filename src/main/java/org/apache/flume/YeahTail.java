@@ -86,13 +86,16 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                         for (Cursor cursor : logConfig.getCursors()) {
                             try {
                                 int readFileLen=0;
-                                for(int i=0;readFileLen==logConfig.getBufferSize()&&i<3;i++){
+                                for(int i=0;i<3;i++){
                                     readFileLen = cursor.process(new Cursor.ProcessCallBack() {
                                         @Override
                                         public void doCallBack(byte[] data) {
                                             cp.processEvent(EventBuilder.withBody(data));
                                         }
                                     });
+                                    if(readFileLen<logConfig.getBufferSize()){
+                                        break;
+                                    }
                                 }
                                 File logFile = cursor.getLogFile();
                                 long nowTime = System.currentTimeMillis();
@@ -104,13 +107,17 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                                     LOG.warn("The file {} is old, remove from cursors.", cursor.getLogFile());
                                 }
                                 //dynamic weighing
-                                double readRate=cursor.getOffset().getCurrentValue()/logFile.length();
-                                if(readRate<0.95){
-                                    weighing=weighing*0.5;
-                                }else if(readRate>=0.99){
-                                    double tmp=weighing*1.2;
-                                    weighing=tmp>1.0?1.0:tmp;
+                                long fileLen=logFile.length();
+                                if(fileLen>0){
+                                    double readRate=cursor.getOffset().getCurrentValue()/fileLen;
+                                    if(readRate<0.95){
+                                        weighing=weighing*0.5;
+                                    }else if(readRate>=0.99){
+                                        double tmp=weighing*1.2;
+                                        weighing=tmp>1.0?1.0:tmp;
+                                    }
                                 }
+
 
                             } catch (IOException e) {
                                 //if log is beging rename
