@@ -30,10 +30,12 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
     private ExecutorService runThreadPool=Executors.newSingleThreadExecutor();
 
     private int fetchInterval=0;
+    private volatile double weighing=1.0;
 
     private WatchService watcher;
 
     private volatile boolean shutdown = false;
+
 
 
     public YeahTail() {
@@ -89,6 +91,7 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                                         cp.processEvent(EventBuilder.withBody(data));
                                     }
                                 });
+
                                 File logFile = cursor.getLogFile();
                                 long nowTime = System.currentTimeMillis();
                                 long lastModified = logFile.lastModified();
@@ -97,6 +100,14 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                                 if (readFileLen == -1 && (lastModified + 300000) < nowTime && !isInOneDay(nowTime, lastModified, logConfig.getDateFormat())) {
                                     logConfig.removeOldLog(cursor);
                                     LOG.warn("The file {} is old, remove from cursors.", cursor.getLogFile());
+                                }
+                                //dynamic weighing
+                                double readRate=cursor.getOffset().getCurrentValue()/logFile.length();
+                                if(readRate<0.95){
+                                    weighing=weighing*0.5;
+                                }else if(readRate>=0.99){
+                                    double tmp=weighing*1.2;
+                                    weighing=tmp>1.0?1.0:tmp;
                                 }
 
                             } catch (IOException e) {
@@ -120,7 +131,7 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                             }
                         }
                         //check file create
-                        handleLogFileCreate(fetchInterval);
+                        handleLogFileCreate((long)(fetchInterval*weighing));
 
                     } catch (Exception e) {
                         LOG.error("", e);
