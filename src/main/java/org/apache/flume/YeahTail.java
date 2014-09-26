@@ -178,8 +178,8 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                             File newFile = new File(logConfig.getParentPath().toString() + "/" + modifiedFileName);
 
                             Date today=new Date();
-                            String todayFmtStr=new SimpleDateFormat(logConfig.getDateFormat()).format(today);
                             if (logConfig.isMatchLog(newFile,today)) {
+                                String todayFmtStr=new SimpleDateFormat(logConfig.getDateFormat()).format(today);
                                 logConfig.addLog2Collect(todayFmtStr,newFile);
                             }
                         }
