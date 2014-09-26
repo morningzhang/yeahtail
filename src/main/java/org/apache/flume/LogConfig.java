@@ -1,19 +1,19 @@
 package org.apache.flume;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.SimpleDateFormat;
-import java.util.List;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class LogConfig {
 
@@ -41,6 +41,7 @@ public class LogConfig {
         }
         return false;
     }
+
 
     public Cursor addNewLog(File realLogFile){
         try {
@@ -91,40 +92,16 @@ public class LogConfig {
         this.parentPath=logFile.getAbsoluteFile().getParentFile().toPath();
 
         this.dateFormat=getDateFormatStr(this.logPattern);
-
         //get today log files
         Date today=new Date();
-        String todayLogPattern= getDateLogPattern(this.logPattern, this.dateFormat, today);
-        File[] logFiles=getLogFilesInParent(todayLogPattern);
+        File[] logFiles=getLogFilesInParent(getDateLogPattern(this.logPattern, this.dateFormat,today));
         if(logFiles!=null){
             String todayFmtStr=new SimpleDateFormat(getDateFormat()).format(today);
             for(File realLogFile:logFiles){
-                //check with date string
-                if(realLogFile.getName().contains(todayFmtStr)){
-                    addNewLog(realLogFile);
-                    LOG.info("Add File {} to cursors. ",realLogFile.getAbsolutePath());
-                }else {
-                    //if not contain date string ,create link
-                    try{
-                        File linkFile = new File(this.parentPath.toFile().getAbsolutePath()+"/"+getDateLogSymbolicLink(realLogFile.getName(),today));
-                        if(!Files.exists(linkFile.toPath())){
-                            Path link= Files.createSymbolicLink(linkFile.toPath(), realLogFile.toPath());
-                            if(link!=null){
-                                addNewLog(linkFile);
-                                LOG.info("create link and add File {} to cursors. ",linkFile.getAbsolutePath());
-                            }
-
-                        }
-
-                    }catch (Exception e){
-                        LOG.error("",e);
-                    }
-
-                }
-
+                addLog2Collect(todayFmtStr, realLogFile);
             }
         }else {
-            LOG.info("There is no file found in the path with the pattern {}. ",todayLogPattern);
+            LOG.info("There is no file found in the path with the pattern {}. ",this.logFileName);
         }
 
     }
@@ -148,7 +125,7 @@ public class LogConfig {
     }
 
 
-    public String getDateLogSymbolicLink(String fileName, Date date){
+    private String getDateLogSymbolicLink(String fileName, Date date){
         String patternWithDate=getDateLogPattern(this.logPattern,this.dateFormat,date);
         Matcher m = Pattern.compile("^.*\\((.*?)\\)\\?.*$").matcher(patternWithDate);
         if(m.matches()) {
@@ -162,10 +139,40 @@ public class LogConfig {
                }
            }
 
-
         }
        return null;
     }
+
+    private File createSymbolicLinkAndAdd2Collect(File noDateLogFile){
+        try{
+            File linkFile = new File(this.parentPath.toFile().getAbsolutePath()+"/"+getDateLogSymbolicLink(noDateLogFile.getName(),new Date(noDateLogFile.lastModified())));
+            if(!Files.exists(linkFile.toPath())){
+                Path link= Files.createSymbolicLink(linkFile.toPath(), noDateLogFile.toPath());
+                if(link!=null){
+                    addNewLog(linkFile);
+                    LOG.info("Create link and add File {} to cursors. ",linkFile.getAbsolutePath());
+                    return linkFile;
+                }
+            }
+        }catch (Exception e){
+            LOG.error("",e);
+        }
+        return null;
+    }
+
+
+    public void addLog2Collect(String todayFmtStr, File logFile){
+        //check with date string
+        if(logFile.getName().contains(todayFmtStr)){
+            addNewLog(logFile);
+            LOG.info("Add File {} to cursors. ",logFile.getAbsolutePath());
+        }else {
+            //if not contain date string ,create link
+            createSymbolicLinkAndAdd2Collect(logFile);
+        }
+    }
+
+
     /**
      *列出所有的符合正则的文件。初始化的时候用的。
      *

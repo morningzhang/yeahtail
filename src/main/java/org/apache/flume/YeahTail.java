@@ -179,33 +179,9 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
                             Date today=new Date();
                             String todayFmtStr=new SimpleDateFormat(logConfig.getDateFormat()).format(today);
-
-
                             if (logConfig.isMatchLog(newFile,today)) {
-                                if(!newFile.getName().contains(todayFmtStr)){
-                                    File linkFile = new File(logConfig.getParentPath().toFile().getAbsolutePath()+"/"+logConfig.getDateLogSymbolicLink(newFile.getName(),new Date()));
-
-                                    try{
-                                        Path link= Files.createSymbolicLink(linkFile.toPath(),newFile.toPath());
-                                        LOG.info("The new link file {} create.",  link.toFile().getName());
-                                    }catch (IOException e1){
-                                        LOG.error(e1.getMessage());
-                                        logConfig.addNewLog(linkFile);
-                                        LOG.info("The new file {} add to for collecting.", linkFile.getAbsolutePath());
-                                    }
-                                }else{
-                                    File offsetFile=new File(Cursor.getLogOffsetFileName(newFile));
-                                    if(offsetFile.exists()){
-                                        offsetFile.renameTo(new File(offsetFile.getAbsolutePath()+".del"));
-                                        LOG.info("Find the offset file {} existed,so add .del mark.", offsetFile.getName());
-                                    }
-                                    logConfig.addNewLog(newFile);
-                                    LOG.info("The new file {} add to for collecting.", newFile.getAbsolutePath());
-                                }
-
-
+                                logConfig.addLog2Collect(todayFmtStr,newFile);
                             }
-
                         }
 
                     }
