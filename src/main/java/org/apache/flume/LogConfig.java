@@ -148,16 +148,16 @@ public class LogConfig {
        return null;
     }
 
-    private File createSymbolicLinkAndAdd2Collect(File noDateLogFile){
+    private File createSymbolicLink(File noDateLogFile){
         try{
             File linkFile = new File(this.parentPath.toFile().getAbsolutePath()+"/"+getDateLogSymbolicLink(noDateLogFile.getName(),new Date(noDateLogFile.lastModified())));
             if(!Files.exists(linkFile.toPath())){
                 Path link= Files.createSymbolicLink(linkFile.toPath(), noDateLogFile.toPath());
                 if(link!=null){
-                    addNewLog(linkFile);
-                    LOG.info("Create link and add File {} to cursors. ",linkFile.getAbsolutePath());
                     return linkFile;
                 }
+            }else{
+                return null;
             }
         }catch (Exception e){
             LOG.error("",e);
@@ -173,7 +173,11 @@ public class LogConfig {
             LOG.info("Add File {} to cursors. ",logFile.getAbsolutePath());
         }else {
             //if not contain date string ,create link
-            createSymbolicLinkAndAdd2Collect(logFile);
+            File linkFile= createSymbolicLink(logFile);
+            if(linkFile!=null&&linkFile.getName().contains(todayFmtStr)){
+                addNewLog(linkFile);
+                LOG.info("Create link and add File {} to cursors. ",linkFile.getAbsolutePath());
+            }
         }
     }
 
