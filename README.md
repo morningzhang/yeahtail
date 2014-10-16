@@ -2,12 +2,17 @@ YeahTail
 ========
 YeahTail is a plugin for flume-ng.<br/>
 It can be work like linux commander "tail -f" and this plugin with offset for logfile.<br/>
+It need jdk>=1.7 <br/>
+
 
 Feathers:<br/>
 1.real time transfer you logfile.<br/>
 2.if the flume agent breakdown ,it will restart from the last offset position of the logfile.<br/>
 3.It can config you file name with regular expression and the date format with expression "${}".<br/>
 4.good suport for daily roll log.<br/>
+5.dynamic weighing <br/>
+6.suport like worker-1-20140911.log ,worker-2-20140911.log ....<br/>
+7.if have no file to read ,it will check modify <br/>
 
 
 
