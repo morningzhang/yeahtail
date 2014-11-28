@@ -14,21 +14,24 @@ import java.util.concurrent.atomic.AtomicLong;
 public class Offset implements Closeable{
     AtomicLong offsetValue;
 
-    File offsetFile;
+    RandomAccessFile offsetFile;
     FileChannel channel;
     MappedByteBuffer mappedByteBuffer;
 
     public Offset(File file) throws IOException {
-        offsetFile=file;
-        channel = new RandomAccessFile(file,"rw").getChannel();
+        offsetFile = new RandomAccessFile(file,"rw");
+        channel=offsetFile.getChannel();
         mappedByteBuffer = channel.map(FileChannel.MapMode.READ_WRITE, 0, 8);
         offsetValue= new AtomicLong(getCurrentValue());
     }
 
     public void close() throws IOException {
-        if(channel.isOpen()){
+        if(channel!=null&&channel.isOpen()){
             channel.force(true);
             channel.close();
+        }
+        if(offsetFile!=null){
+            offsetFile.close();
         }
     }
 
@@ -46,7 +49,4 @@ public class Offset implements Closeable{
         return mappedByteBuffer.getLong();
     }
 
-    public File getOffsetFile() {
-        return offsetFile;
-    }
 }

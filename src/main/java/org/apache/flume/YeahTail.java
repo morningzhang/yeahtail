@@ -196,7 +196,13 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                     if(!modifiedFileName.endsWith(".offset")){
                         Date today=new Date();
                         File modifiedFile = new File(logConfig.getParentPath().toString() + "/" + modifiedFileName);
-                        if (kind == ENTRY_CREATE||kind == ENTRY_MODIFY) {
+                        if (kind == ENTRY_CREATE) {
+                            if (logConfig.isMatchLog(modifiedFile,today)) {
+                                logConfig.addLog2Collect(new SimpleDateFormat(logConfig.getDateFormat()).format(today),modifiedFile);
+                                isCheckModify=false;
+                            }
+                        }
+                       else if (kind == ENTRY_MODIFY) {
                             if (logConfig.isMatchLog(modifiedFile,today)) {
                                 logConfig.addLog2Collect(new SimpleDateFormat(logConfig.getDateFormat()).format(today),modifiedFile);
                                 registerWatcher(ENTRY_CREATE);
