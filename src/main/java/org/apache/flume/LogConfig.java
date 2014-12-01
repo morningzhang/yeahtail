@@ -10,8 +10,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,7 +26,7 @@ public class LogConfig {
     private Path parentPath;
     private String logPattern;
     private String dateFormat;
-    private List<Cursor> cursors=new CopyOnWriteArrayList<Cursor>();
+    private Set<Cursor> cursors=new CopyOnWriteArraySet<Cursor>();
 
 
     LogConfig(String logFileName,int bufferSize){
@@ -52,7 +52,6 @@ public class LogConfig {
             LOG.warn(e.getMessage());
             return null;
         }
-
     }
 
     public boolean removeOldLog(Cursor cursor){
@@ -68,7 +67,19 @@ public class LogConfig {
         return true;
     }
 
-    public List<Cursor> getCursors(){
+    public boolean isContainInCursors(File realLogFile){
+        if(cursors.size()>0){
+            for(Cursor c:cursors){
+                if(c.getLogFile().equals(realLogFile)){
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+
+    public Set<Cursor> getCursors(){
         return cursors;
     }
 
@@ -169,13 +180,19 @@ public class LogConfig {
     public void addLog2Collect(String todayFmtStr, File logFile){
         //check with date string
         if(logFile.getName().contains(todayFmtStr)){
-            addNewLog(logFile);
-            LOG.info("Add File {} to cursors. ",logFile.getAbsolutePath());
+            if(!isContainInCursors(logFile)) {
+                addNewLog(logFile);
+                LOG.info("Add File {} to cursors. ", logFile.getAbsolutePath());
+            }
+
         }else {
             //if not contain date string ,create link
             File linkFile= createSymbolicLink(logFile);
             if(linkFile!=null&&linkFile.getName().contains(todayFmtStr)){
-                addNewLog(linkFile);
+                if(!isContainInCursors(linkFile)) {
+                    addNewLog(linkFile);
+                    LOG.info("Add File {} to cursors. ", logFile.getAbsolutePath());
+                }
                 LOG.info("Create link and add File {} to cursors. ",linkFile.getAbsolutePath());
             }
         }

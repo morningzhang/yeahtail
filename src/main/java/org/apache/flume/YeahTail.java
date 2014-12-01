@@ -32,7 +32,6 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
     private int fetchInterval=0;
     private volatile double weighing=1.0;
-    private volatile boolean isCheckModify=false;
 
     private WatchService watcher;
 
@@ -40,7 +39,7 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
     public YeahTail() {
         LOG.info("YeahTail Starting......");
-        newWatchService();
+        watcher =newWatchService();
     }
 
     public void configure(Context context) {
@@ -57,8 +56,7 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
         try {
             logConfig = new LogConfig(logFileName, bufferSize);
-            logConfig.getParentPath().register(watcher, ENTRY_CREATE);
-
+            logConfig.getParentPath().register(watcher, ENTRY_CREATE, ENTRY_MODIFY);
         } catch (Throwable t) {
             String ss = Throwables.getStackTraceAsString(t);
             System.err.println(ss);
@@ -76,13 +74,6 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
             public void run() {
                 while (!shutdown) {
                     try {
-                        //if no Cursors ,check file modify
-                        if(logConfig.getCursors().size()==0&&isCheckModify==false){
-                            LOG.warn("Cursors size is {}",logConfig.getCursors().size());
-                            registerWatcher(ENTRY_CREATE,ENTRY_MODIFY);
-                            isCheckModify=true;
-                        }
-
                         //submit collect log task to thread pool
                         for (Cursor cursor : logConfig.getCursors()) {
                             try {
@@ -188,28 +179,22 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
                     if (kind == OVERFLOW) {
                         continue;
                     }
-                    @SuppressWarnings("unchecked")
-                    WatchEvent<Path> e = (WatchEvent<Path>) event;
+                    if (kind == ENTRY_CREATE || kind == ENTRY_MODIFY) {
+                        @SuppressWarnings("unchecked")
+                        WatchEvent<Path> e = (WatchEvent<Path>) event;
 
-                    String modifiedFileName = e.context().toFile().getName();
-                    //entry created and would not be a offset file
-                    if(!modifiedFileName.endsWith(".offset")){
-                        Date today=new Date();
-                        File modifiedFile = new File(logConfig.getParentPath().toString() + "/" + modifiedFileName);
-                        if (kind == ENTRY_CREATE) {
-                            if (logConfig.isMatchLog(modifiedFile,today)) {
-                                logConfig.addLog2Collect(new SimpleDateFormat(logConfig.getDateFormat()).format(today),modifiedFile);
-                                isCheckModify=false;
-                            }
-                        }
-                       else if (kind == ENTRY_MODIFY) {
-                            if (logConfig.isMatchLog(modifiedFile,today)) {
-                                logConfig.addLog2Collect(new SimpleDateFormat(logConfig.getDateFormat()).format(today),modifiedFile);
-                                registerWatcher(ENTRY_CREATE);
-                                isCheckModify=false;
+                        String modifiedFileName = e.context().toFile().getName();
+                        //entry created and would not be a offset file
+                        if (!modifiedFileName.endsWith(".offset")) {
+                            Date today = new Date();
+                            String dateFormatStr=new SimpleDateFormat(logConfig.getDateFormat()).format(today);
+                            File modifiedFile = new File(logConfig.getParentPath().toString() + "/" + modifiedFileName);
+                            if (logConfig.isMatchLog(modifiedFile, today)) {
+                                logConfig.addLog2Collect(dateFormatStr, modifiedFile);
                             }
                         }
                     }
+
                 }
                 key.reset();
             } catch (Exception e) {
@@ -218,26 +203,13 @@ public class YeahTail extends AbstractSource implements EventDrivenSource, Confi
 
     }
 
-    private void registerWatcher(WatchEvent.Kind ...event){
+    private WatchService newWatchService(){
         try{
-            newWatchService();
-            logConfig.getParentPath().register(watcher, event);
-        }catch (Exception e){
-            LOG.error("", e);
-        }
-    }
-
-    private void newWatchService(){
-        try{
-            if(watcher!=null){
-                watcher.close();
-                watcher=null;
-            }
-            watcher = FileSystems.getDefault().newWatchService();
-            LOG.info("create new watcher service.");
+           return FileSystems.getDefault().newWatchService();
         }catch (IOException e){
             LOG.error("", e);
         }
+        return null;
     }
 
 }
