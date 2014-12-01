@@ -191,9 +191,8 @@ public class LogConfig {
             if(linkFile!=null&&linkFile.getName().contains(todayFmtStr)){
                 if(!isContainInCursors(linkFile)) {
                     addNewLog(linkFile);
-                    LOG.info("Add File {} to cursors. ", logFile.getAbsolutePath());
+                    LOG.info("Create link and add File {} to cursors. ",linkFile.getAbsolutePath());
                 }
-                LOG.info("Create link and add File {} to cursors. ",linkFile.getAbsolutePath());
             }
         }
     }
